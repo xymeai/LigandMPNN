@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.distributions as D
 import torch.nn as nn
+
 from model_utils import (
     DecLayer,
     DecLayerJ,
@@ -13,7 +14,6 @@ from model_utils import (
     gather_edges,
     gather_nodes,
 )
-
 from openfold.data.data_transforms import atom37_to_torsion_angles, make_atom14_masks
 from openfold.np.residue_constants import (
     restype_atom14_mask,
@@ -208,7 +208,7 @@ def make_torsion_features(feature_dict, repack_everything=True):
         S_af2,
         torch.tensor(restype_rigid_group_default_frame, device=device),
     )
-    
+
     xyz14_noised = feats.frames_and_literature_positions_to_atom14_pos(
         pred_frames,
         S_af2,

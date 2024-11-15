@@ -7,6 +7,8 @@ import sys
 
 import numpy as np
 import torch
+from prody import writePDB
+
 from data_utils import (
     alphabet,
     element_dict_rev,
@@ -20,7 +22,6 @@ from data_utils import (
     write_full_PDB,
 )
 from model_utils import ProteinMPNN
-from prody import writePDB
 from sc_utils import Packer, pack_side_chains
 
 
@@ -186,7 +187,6 @@ def main(args) -> None:
         parse_these_chains_only_list = args.parse_these_chains_only.split(",")
     else:
         parse_these_chains_only_list = []
-
 
     # loop over PDB paths
     for pdb in pdb_paths:

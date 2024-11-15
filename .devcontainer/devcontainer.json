@@ -1,0 +1,30 @@
+{
+    "name": "LigandMPNN",
+    "build": {
+        "context": "..",
+        "dockerfile": "../Dockerfile"
+    },
+    // Features to add to the dev container. More info: https://containers.dev/features.
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
+    },
+    // Use 'forwardPorts' to make a list of ports inside the container available locally.
+    "forwardPorts": [],
+    // Use 'postCreateCommand' to run commands after the container is created.
+    "postCreateCommand": "",
+    "runArgs": [],
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "python.defaultInterpreterPath": "/app/.venv/bin/python"
+            },
+            "extensions": [
+                "ms-azuretools.vscode-docker",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "charliermarsh.ruff"
+            ]
+        }
+    }
+}

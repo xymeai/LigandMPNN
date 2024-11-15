@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import numpy as np
 import torch
 import torch.utils
@@ -516,7 +514,7 @@ def parse_PDB(
     device: str = "cpu",
     chains: list = [],
     parse_all_atoms: bool = False,
-    parse_atoms_with_zero_occupancy: bool = False
+    parse_atoms_with_zero_occupancy: bool = False,
 ):
     """
     input_path : path for the input PDB
