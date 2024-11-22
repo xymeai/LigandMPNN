@@ -1,5 +1,6 @@
 # repo-specific
 model_params/
+outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
