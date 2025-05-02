@@ -12,21 +12,24 @@ ENV \
 # Install build dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get -qq update \
-    && apt-get -qq install -y build-essential
+    && apt-get -qq install -y build-essential python3 python3-pip wget
 
-ADD . /app
+RUN pip install uv
 
 # Install dependencies using the lockfile and settings
-RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --dev
+COPY uv.lock uv.lock
+COPY pyproject.toml pyproject.toml
+RUN uv sync --frozen --no-install-project --dev
+
+# Get the model parameters
+COPY ./scripts/get_model_params.sh ./scripts/get_model_params.sh
+RUN bash ./scripts/get_model_params.sh "./model_params"
 
 # Build the final image
-FROM nvidia/cuda:12.1.0-base-ubuntu22.04
+FROM builder
 
 WORKDIR /app
-
-COPY --from=builder /app /app
+COPY . /app
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
