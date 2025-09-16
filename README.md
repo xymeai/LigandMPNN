@@ -6,15 +6,10 @@ Third party code: side chain packing uses helper functions from [Openfold](https
 
 ### Running the code
 ```
-git clone https://github.com/dauparas/LigandMPNN.git
-cd LigandMPNN
-bash get_model_params.sh "./model_params"
+git@github.com:xymeai/LigandMPNN.git
+just build
 
-#setup your conda/or other environment
-#conda create -n ligandmpnn_env python=3.11
-#pip3 install -r requirements.txt
-
-python run.py \
+docker run emlynxyme/ligandmpnn:61488d8 python run.py \
         --seed 111 \
         --pdb_path "./inputs/1BC8.pdb" \
         --out_folder "./outputs/default"
