@@ -7,7 +7,7 @@ name = "ligandmpnn"
 description = "LigandMPNN is a deep-learning-based protein sequence design method that can explicitly model all nonprotein components of biomolecular systems"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
-dynamic = ["version"]
+version = "1.0.0"
 dependencies = [
     "numpy~=1.23.5",
     "biopython~=1.79",
@@ -84,10 +84,6 @@ ignore = ["S101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
-
-[tool.setuptools_scm]
-local_scheme = "dirty-tag"
-write_to = "src/ligandmpnn/version.py"
 
 
 [[tool.uv.index]]
