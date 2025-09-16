@@ -14,7 +14,7 @@ from ligandmpnn.data import (
     parse_PDB,
     restype_int_to_str,
 )
-from src.ligandmpnn.models import ProteinMPNN
+from ligandmpnn.models import ProteinMPNN
 
 
 def main(args) -> None:
