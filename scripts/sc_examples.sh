@@ -1,5 +1,5 @@
 #1 design a new sequence and pack side chains (return 1 side chain packing sample - fast) 
-python run.py \
+python -m ligandmpnn \
         --model_type "ligand_mpnn" \
         --seed 111 \
         --pdb_path "./inputs/1BC8.pdb" \
@@ -9,7 +9,7 @@ python run.py \
         --pack_with_ligand_context 1
 
 #2 design a new sequence and pack side chains (return 4 side chain packing samples) 
-python run.py \
+python -m ligandmpnn \
         --model_type "ligand_mpnn" \
         --seed 111 \
         --pdb_path "./inputs/1BC8.pdb" \
@@ -20,7 +20,7 @@ python run.py \
 
 
 #3 fix specific residues for design and packing 
-python run.py \
+python -m ligandmpnn \
         --model_type "ligand_mpnn" \
         --seed 111 \
         --pdb_path "./inputs/1BC8.pdb" \
@@ -32,7 +32,7 @@ python run.py \
         --repack_everything 0
 
 #4 fix specific residues for sequence design but repack everything 
-python run.py \
+python -m ligandmpnn \
         --model_type "ligand_mpnn" \
         --seed 111 \
         --pdb_path "./inputs/1BC8.pdb" \
@@ -45,7 +45,7 @@ python run.py \
 
 
 #5 design a new sequence using LigandMPNN but pack side chains without considering ligand/DNA etc atoms 
-python run.py \
+python -m ligandmpnn \
         --model_type "ligand_mpnn" \
         --seed 111 \
         --pdb_path "./inputs/1BC8.pdb" \
