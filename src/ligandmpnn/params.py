@@ -94,7 +94,7 @@ async def fetch_original_params() -> list[Path]:
         for uri in parameter_file_uris
     ]
 
-    logger.info(f"Checking parameter files")
+    logger.info("Checking parameter files")
     results = await tqdm.gather(*fns)
     await session.close()
     logger.info(f"Parameters set in {MODEL_PARAMS_DIR}")

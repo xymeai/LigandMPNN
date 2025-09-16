@@ -14,12 +14,12 @@
 # limitations under the License.
 
 """Functions for parsing various file formats."""
+
 import collections
 import dataclasses
 import re
 import string
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
-
+from collections.abc import Iterable, Sequence
 
 DeletionMatrix = Sequence[Sequence[int]]
 
@@ -34,11 +34,11 @@ class TemplateHit:
     sum_probs: float
     query: str
     hit_sequence: str
-    indices_query: List[int]
-    indices_hit: List[int]
+    indices_query: list[int]
+    indices_hit: list[int]
 
 
-def parse_fasta(fasta_string: str) -> Tuple[Sequence[str], Sequence[str]]:
+def parse_fasta(fasta_string: str) -> tuple[Sequence[str], Sequence[str]]:
     """Parses FASTA string and returns list of strings with amino-acid sequences.
 
     Arguments:
@@ -69,7 +69,7 @@ def parse_fasta(fasta_string: str) -> Tuple[Sequence[str], Sequence[str]]:
 
 def parse_stockholm(
     stockholm_string: str,
-) -> Tuple[Sequence[str], DeletionMatrix, Sequence[str]]:
+) -> tuple[Sequence[str], DeletionMatrix, Sequence[str]]:
     """Parses sequences and deletion matrix from stockholm format alignment.
 
     Args:
@@ -115,7 +115,7 @@ def parse_stockholm(
         # Count the number of deletions w.r.t. query.
         deletion_vec = []
         deletion_count = 0
-        for seq_res, query_res in zip(sequence, query):
+        for seq_res, query_res in zip(sequence, query, strict=False):
             if seq_res != "-" or query_res != "-":
                 if query_res == "-":
                     deletion_count += 1
@@ -127,7 +127,7 @@ def parse_stockholm(
     return msa, deletion_matrix, list(name_to_sequence.keys())
 
 
-def parse_a3m(a3m_string: str) -> Tuple[Sequence[str], DeletionMatrix]:
+def parse_a3m(a3m_string: str) -> tuple[Sequence[str], DeletionMatrix]:
     """Parses sequences and deletion matrix from a3m format alignment.
 
     Args:
@@ -164,7 +164,9 @@ def parse_a3m(a3m_string: str) -> Tuple[Sequence[str], DeletionMatrix]:
 def _convert_sto_seq_to_a3m(
     query_non_gaps: Sequence[bool], sto_seq: str
 ) -> Iterable[str]:
-    for is_query_res_non_gap, sequence_res in zip(query_non_gaps, sto_seq):
+    for is_query_res_non_gap, sequence_res in zip(
+        query_non_gaps, sto_seq, strict=False
+    ):
         if is_query_res_non_gap:
             yield sequence_res
         elif sequence_res != "-":
@@ -172,7 +174,7 @@ def _convert_sto_seq_to_a3m(
 
 
 def convert_stockholm_to_a3m(
-    stockholm_format: str, max_sequences: Optional[int] = None
+    stockholm_format: str, max_sequences: int | None = None
 ) -> str:
     """Converts MSA in Stockholm format to the A3M format."""
     descriptions = {}
@@ -180,9 +182,7 @@ def convert_stockholm_to_a3m(
     reached_max_sequences = False
 
     for line in stockholm_format.splitlines():
-        reached_max_sequences = (
-            max_sequences and len(sequences) >= max_sequences
-        )
+        reached_max_sequences = max_sequences and len(sequences) >= max_sequences
         if line.strip() and not line.startswith(("#", "//")):
             # Ignore blank lines, markup and end symbols - remainder are alignment
             # sequence parts.
@@ -219,15 +219,12 @@ def convert_stockholm_to_a3m(
         )
 
     fasta_chunks = (
-        f">{k} {descriptions.get(k, '')}\n{a3m_sequences[k]}"
-        for k in a3m_sequences
+        f">{k} {descriptions.get(k, '')}\n{a3m_sequences[k]}" for k in a3m_sequences
     )
     return "\n".join(fasta_chunks) + "\n"  # Include terminating newline.
 
 
-def _get_hhr_line_regex_groups(
-    regex_pattern: str, line: str
-) -> Sequence[Optional[str]]:
+def _get_hhr_line_regex_groups(regex_pattern: str, line: str) -> Sequence[str | None]:
     match = re.match(regex_pattern, line)
     if match is None:
         raise RuntimeError(f"Could not parse query line {line}")
@@ -235,7 +232,7 @@ def _get_hhr_line_regex_groups(
 
 
 def _update_hhr_residue_indices_list(
-    sequence: str, start_index: int, indices_list: List[int]
+    sequence: str, start_index: int, indices_list: list[int]
 ):
     """Computes the relative indices for each residue with respect to the original sequence."""
     counter = start_index
@@ -278,9 +275,9 @@ def _parse_hhr_hit(detailed_lines: Sequence[str]) -> TemplateHit:
             "Could not parse section: %s. Expected this: \n%s to contain summary."
             % (detailed_lines, detailed_lines[2])
         )
-    (prob_true, e_value, _, aligned_cols, _, _, sum_probs, neff) = [
+    (prob_true, e_value, _, aligned_cols, _, _, sum_probs, neff) = (
         float(x) for x in match.groups()
-    ]
+    )
 
     # The next section reads the detailed comparisons. These are in a 'human
     # readable' format which has a fixed length. The strategy employed is to
@@ -337,9 +334,7 @@ def _parse_hhr_hit(detailed_lines: Sequence[str]) -> TemplateHit:
 
                 # Update the hit sequence and indices list.
                 hit_sequence += delta_hit_sequence
-                _update_hhr_residue_indices_list(
-                    delta_hit_sequence, start, indices_hit
-                )
+                _update_hhr_residue_indices_list(delta_hit_sequence, start, indices_hit)
 
     return TemplateHit(
         index=number_of_hit,
@@ -367,13 +362,11 @@ def parse_hhr(hhr_string: str) -> Sequence[TemplateHit]:
     if block_starts:
         block_starts.append(len(lines))  # Add the end of the final block.
         for i in range(len(block_starts) - 1):
-            hits.append(
-                _parse_hhr_hit(lines[block_starts[i] : block_starts[i + 1]])
-            )
+            hits.append(_parse_hhr_hit(lines[block_starts[i] : block_starts[i + 1]]))
     return hits
 
 
-def parse_e_values_from_tblout(tblout: str) -> Dict[str, float]:
+def parse_e_values_from_tblout(tblout: str) -> dict[str, float]:
     """Parse target to e-value mapping parsed from Jackhmmer tblout string."""
     e_values = {"query": 0}
     lines = [line for line in tblout.splitlines() if line[0] != "#"]

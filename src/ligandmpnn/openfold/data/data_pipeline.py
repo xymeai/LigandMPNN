@@ -14,8 +14,9 @@
 # limitations under the License.
 
 import os
+from collections.abc import Mapping, Sequence
 from multiprocessing import cpu_count
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -40,8 +41,8 @@ def make_template_features(
     input_sequence: str,
     hits: Sequence[Any],
     template_featurizer: Any,
-    query_pdb_code: Optional[str] = None,
-    query_release_date: Optional[str] = None,
+    query_pdb_code: str | None = None,
+    query_release_date: str | None = None,
 ) -> FeatureDict:
     hits_cat = sum(hits.values(), [])
     if len(hits_cat) == 0 or template_featurizer is None:
@@ -248,16 +249,16 @@ class AlignmentRunner:
 
     def __init__(
         self,
-        jackhmmer_binary_path: Optional[str] = None,
-        hhblits_binary_path: Optional[str] = None,
-        hhsearch_binary_path: Optional[str] = None,
-        uniref90_database_path: Optional[str] = None,
-        mgnify_database_path: Optional[str] = None,
-        bfd_database_path: Optional[str] = None,
-        uniclust30_database_path: Optional[str] = None,
-        pdb70_database_path: Optional[str] = None,
-        use_small_bfd: Optional[bool] = None,
-        no_cpus: Optional[int] = None,
+        jackhmmer_binary_path: str | None = None,
+        hhblits_binary_path: str | None = None,
+        hhsearch_binary_path: str | None = None,
+        uniref90_database_path: str | None = None,
+        mgnify_database_path: str | None = None,
+        bfd_database_path: str | None = None,
+        uniclust30_database_path: str | None = None,
+        pdb70_database_path: str | None = None,
+        use_small_bfd: bool | None = None,
+        no_cpus: int | None = None,
         uniref_max_hits: int = 10000,
         mgnify_max_hits: int = 5000,
     ):
@@ -436,14 +437,14 @@ class DataPipeline:
 
     def __init__(
         self,
-        template_featurizer: Optional[templates.TemplateHitFeaturizer],
+        template_featurizer: templates.TemplateHitFeaturizer | None,
     ):
         self.template_featurizer = template_featurizer
 
     def _parse_msa_data(
         self,
         alignment_dir: str,
-        alignment_index: Optional[Any] = None,
+        alignment_index: Any | None = None,
     ) -> Mapping[str, Any]:
         msa_data = {}
         if alignment_index is not None:
@@ -477,11 +478,11 @@ class DataPipeline:
                 ext = os.path.splitext(f)[-1]
 
                 if ext == ".a3m":
-                    with open(path, "r") as fp:
+                    with open(path) as fp:
                         msa, deletion_matrix = parsers.parse_a3m(fp.read())
                     data = {"msa": msa, "deletion_matrix": deletion_matrix}
                 elif ext == ".sto":
-                    with open(path, "r") as fp:
+                    with open(path) as fp:
                         msa, deletion_matrix, _ = parsers.parse_stockholm(fp.read())
                     data = {"msa": msa, "deletion_matrix": deletion_matrix}
                 else:
@@ -492,7 +493,7 @@ class DataPipeline:
         return msa_data
 
     def _parse_template_hits(
-        self, alignment_dir: str, alignment_index: Optional[Any] = None
+        self, alignment_dir: str, alignment_index: Any | None = None
     ) -> Mapping[str, Any]:
         all_hits = {}
         if alignment_index is not None:
@@ -516,7 +517,7 @@ class DataPipeline:
                 ext = os.path.splitext(f)[-1]
 
                 if ext == ".hhr":
-                    with open(path, "r") as fp:
+                    with open(path) as fp:
                         hits = parsers.parse_hhr(fp.read())
                     all_hits[f] = hits
 
@@ -525,8 +526,8 @@ class DataPipeline:
     def _get_msas(
         self,
         alignment_dir: str,
-        input_sequence: Optional[str] = None,
-        alignment_index: Optional[str] = None,
+        input_sequence: str | None = None,
+        alignment_index: str | None = None,
     ):
         msa_data = self._parse_msa_data(alignment_dir, alignment_index)
         if len(msa_data) == 0:
@@ -543,7 +544,7 @@ class DataPipeline:
             }
 
         msas, deletion_matrices = zip(
-            *[(v["msa"], v["deletion_matrix"]) for v in msa_data.values()]
+            *[(v["msa"], v["deletion_matrix"]) for v in msa_data.values()], strict=False
         )
 
         return msas, deletion_matrices
@@ -551,8 +552,8 @@ class DataPipeline:
     def _process_msa_feats(
         self,
         alignment_dir: str,
-        input_sequence: Optional[str] = None,
-        alignment_index: Optional[str] = None,
+        input_sequence: str | None = None,
+        alignment_index: str | None = None,
     ) -> Mapping[str, Any]:
         msas, deletion_matrices = self._get_msas(
             alignment_dir, input_sequence, alignment_index
@@ -568,7 +569,7 @@ class DataPipeline:
         self,
         fasta_path: str,
         alignment_dir: str,
-        alignment_index: Optional[str] = None,
+        alignment_index: str | None = None,
     ) -> FeatureDict:
         """Assembles features for a single sequence in a FASTA file"""
         with open(fasta_path) as f:
@@ -603,8 +604,8 @@ class DataPipeline:
         self,
         mmcif: mmcif_parsing.MmcifObject,  # parsing is expensive, so no path
         alignment_dir: str,
-        chain_id: Optional[str] = None,
-        alignment_index: Optional[str] = None,
+        chain_id: str | None = None,
+        alignment_index: str | None = None,
     ) -> FeatureDict:
         """
         Assembles features for a specific chain in an mmCIF object.
@@ -641,9 +642,9 @@ class DataPipeline:
         pdb_path: str,
         alignment_dir: str,
         is_distillation: bool = True,
-        chain_id: Optional[str] = None,
-        _structure_index: Optional[str] = None,
-        alignment_index: Optional[str] = None,
+        chain_id: str | None = None,
+        _structure_index: str | None = None,
+        alignment_index: str | None = None,
     ) -> FeatureDict:
         """
         Assembles features for a protein in a PDB file.
@@ -658,7 +659,7 @@ class DataPipeline:
             pdb_str = fp.read(length).decode("utf-8")
             fp.close()
         else:
-            with open(pdb_path, "r") as f:
+            with open(pdb_path) as f:
                 pdb_str = f.read()
 
         protein_object = protein.from_pdb_string(pdb_str, chain_id)
@@ -685,12 +686,12 @@ class DataPipeline:
         self,
         core_path: str,
         alignment_dir: str,
-        alignment_index: Optional[str] = None,
+        alignment_index: str | None = None,
     ) -> FeatureDict:
         """
         Assembles features for a protein in a ProteinNet .core file.
         """
-        with open(core_path, "r") as f:
+        with open(core_path) as f:
             core_str = f.read()
 
         protein_object = protein.from_proteinnet_string(core_str)
@@ -719,7 +720,7 @@ class DataPipeline:
         Assembles features for a multi-sequence FASTA. Uses Minkyung Baek's
         hack from Twitter (a.k.a. AlphaFold-Gap).
         """
-        with open(fasta_path, "r") as f:
+        with open(fasta_path) as f:
             fasta_str = f.read()
 
         input_seqs, input_descs = parsers.parse_fasta(fasta_str)
@@ -746,7 +747,7 @@ class DataPipeline:
 
         msa_list = []
         deletion_mat_list = []
-        for seq, desc in zip(input_seqs, input_descs):
+        for seq, desc in zip(input_seqs, input_descs, strict=False):
             alignment_dir = os.path.join(super_alignment_dir, desc)
             msas, deletion_mats = self._get_msas(alignment_dir, seq, None)
             msa_list.append(msas)
@@ -754,7 +755,7 @@ class DataPipeline:
 
         final_msa = []
         final_deletion_mat = []
-        msa_it = enumerate(zip(msa_list, deletion_mat_list))
+        msa_it = enumerate(zip(msa_list, deletion_mat_list, strict=False))
         for i, (msas, deletion_mats) in msa_it:
             prec, post = sum(seq_lens[:i]), sum(seq_lens[i + 1 :])
             msas = [[prec * "-" + seq + post * "-" for seq in msa] for msa in msas]
@@ -774,7 +775,7 @@ class DataPipeline:
         )
 
         template_feature_list = []
-        for seq, desc in zip(input_seqs, input_descs):
+        for seq, desc in zip(input_seqs, input_descs, strict=False):
             alignment_dir = os.path.join(super_alignment_dir, desc)
             hits = self._parse_template_hits(alignment_dir, alignment_index=None)
             template_features = make_template_features(

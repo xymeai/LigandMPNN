@@ -14,21 +14,20 @@
 # limitations under the License.
 
 """Parses the mmCIF file format."""
+
 import collections
 import dataclasses
 import io
-import json
 import logging
-import os
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from collections.abc import Mapping, Sequence
+from typing import Any
 
+import numpy as np
 from Bio import PDB
 from Bio.Data import SCOPData
-import numpy as np
 
-from ligandmpnn.openfold.data.errors import MultipleChainsError
 import ligandmpnn.openfold.np.residue_constants as residue_constants
-
+from ligandmpnn.openfold.data.errors import MultipleChainsError
 
 # Type aliases:
 ChainId = str
@@ -68,7 +67,7 @@ class ResiduePosition:
 
 @dataclasses.dataclass(frozen=True)
 class ResidueAtPosition:
-    position: Optional[ResiduePosition]
+    position: ResiduePosition | None
     name: str
     is_missing: bool
     hetflag: str
@@ -110,8 +109,8 @@ class ParsingResult:
       errors: A dict mapping (file_id, chain_id) to any exception generated.
     """
 
-    mmcif_object: Optional[MmcifObject]
-    errors: Mapping[Tuple[str, str], Any]
+    mmcif_object: MmcifObject | None
+    errors: Mapping[tuple[str, str], Any]
 
 
 class ParseError(Exception):
@@ -147,7 +146,7 @@ def mmcif_loop_to_list(
         "mmCIF error: Not all loops are the same length: %s" % cols
     )
 
-    return [dict(zip(cols, xs)) for xs in zip(*data)]
+    return [dict(zip(cols, xs, strict=False)) for xs in zip(*data, strict=False)]
 
 
 def mmcif_loop_to_dict(
@@ -249,12 +248,8 @@ def parse(
                     residue_number=int(atom.author_seq_num),
                     insertion_code=insertion_code,
                 )
-                seq_idx = (
-                    int(atom.mmcif_seq_num) - seq_start_num[atom.mmcif_chain_id]
-                )
-                current = seq_to_structure_mappings.get(
-                    atom.author_chain_id, {}
-                )
+                seq_idx = int(atom.mmcif_seq_num) - seq_start_num[atom.mmcif_chain_id]
+                current = seq_to_structure_mappings.get(atom.author_chain_id, {})
                 current[seq_idx] = ResidueAtPosition(
                     position=position,
                     name=atom.residue_name,
@@ -346,9 +341,7 @@ def _get_header(parsed_info: MmCIFDict) -> PdbHeader:
                 raw_resolution = parsed_info[res_key][0]
                 header["resolution"] = float(raw_resolution)
             except ValueError:
-                logging.info(
-                    "Invalid resolution format: %s", parsed_info[res_key]
-                )
+                logging.info("Invalid resolution format: %s", parsed_info[res_key])
 
     return header
 
@@ -366,6 +359,7 @@ def _get_atom_site_list(parsed_info: MmCIFDict) -> Sequence[AtomSite]:
             parsed_info["_atom_site.pdbx_PDB_ins_code"],
             parsed_info["_atom_site.group_PDB"],
             parsed_info["_atom_site.pdbx_PDB_model_num"],
+            strict=False,
         )
     ]
 
@@ -430,10 +424,8 @@ def _is_set(data: str) -> bool:
 
 
 def get_atom_coords(
-    mmcif_object: MmcifObject, 
-    chain_id: str, 
-    _zero_center_positions: bool = False
-) -> Tuple[np.ndarray, np.ndarray]:
+    mmcif_object: MmcifObject, chain_id: str, _zero_center_positions: bool = False
+) -> tuple[np.ndarray, np.ndarray]:
     # Locate the right chain
     chains = list(mmcif_object.structure.get_chains())
     relevant_chains = [c for c in chains if c.id == chain_id]

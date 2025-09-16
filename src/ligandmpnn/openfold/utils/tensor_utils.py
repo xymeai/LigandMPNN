@@ -14,8 +14,6 @@
 # limitations under the License.
 
 from functools import partial
-import logging
-from typing import Tuple, List, Callable, Any, Dict, Sequence, Optional
 
 import torch
 import torch.nn as nn
@@ -24,7 +22,7 @@ import torch.nn as nn
 def add(m1, m2, inplace):
     # The first operation in a checkpoint can't be in-place, but it's
     # nice to have in-place addition during inference. Thus...
-    if(not inplace):
+    if not inplace:
         m1 = m1 + m2
     else:
         m1 += m2
@@ -32,7 +30,7 @@ def add(m1, m2, inplace):
     return m1
 
 
-def permute_final_dims(tensor: torch.Tensor, inds: List[int]):
+def permute_final_dims(tensor: torch.Tensor, inds: list[int]):
     zero_index = -1 * len(inds)
     first_inds = list(range(len(tensor.shape[:zero_index])))
     return tensor.permute(first_inds + [zero_index + i for i in inds])
@@ -48,12 +46,8 @@ def masked_mean(mask, value, dim, eps=1e-4):
 
 
 def pts_to_distogram(pts, min_bin=2.3125, max_bin=21.6875, no_bins=64):
-    boundaries = torch.linspace(
-        min_bin, max_bin, no_bins - 1, device=pts.device
-    )
-    dists = torch.sqrt(
-        torch.sum((pts.unsqueeze(-2) - pts.unsqueeze(-3)) ** 2, dim=-1)
-    )
+    boundaries = torch.linspace(min_bin, max_bin, no_bins - 1, device=pts.device)
+    dists = torch.sqrt(torch.sum((pts.unsqueeze(-2) - pts.unsqueeze(-3)) ** 2, dim=-1))
     return torch.bucketize(dists, boundaries)
 
 
@@ -84,9 +78,7 @@ def batched_gather(data, inds, dim=0, no_batch_dims=0):
         r = r.view(*(*((1,) * i), -1, *((1,) * (len(inds.shape) - i - 1))))
         ranges.append(r)
 
-    remaining_dims = [
-        slice(None) for _ in range(len(data.shape) - no_batch_dims)
-    ]
+    remaining_dims = [slice(None) for _ in range(len(data.shape) - no_batch_dims)]
     remaining_dims[dim - no_batch_dims if dim >= 0 else dim] = inds
     ranges.extend(remaining_dims)
     return data[ranges]

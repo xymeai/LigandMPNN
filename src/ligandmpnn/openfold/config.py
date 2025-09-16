@@ -1,4 +1,5 @@
 import copy
+
 import ml_collections as mlc
 
 
@@ -12,7 +13,7 @@ def set_inf(c, inf):
 
 def enforce_config_constraints(config):
     def string_to_setting(s):
-        path = s.split('.')
+        path = s.split(".")
         setting = config
         for p in path:
             setting = setting[p]
@@ -20,16 +21,13 @@ def enforce_config_constraints(config):
         return setting
 
     mutually_exclusive_bools = [
-        (
-            "model.template.average_templates", 
-            "model.template.offload_templates"
-        )
+        ("model.template.average_templates", "model.template.offload_templates")
     ]
 
     for s1, s2 in mutually_exclusive_bools:
         s1_setting = string_to_setting(s1)
         s2_setting = string_to_setting(s2)
-        if(s1_setting and s2_setting):
+        if s1_setting and s2_setting:
             raise ValueError(f"Only one of {s1} and {s2} may be set at a time")
 
 
@@ -43,13 +41,13 @@ def model_config(name, train=False, low_prec=False):
         c.data.train.max_extra_msa = 5120
         c.data.train.crop_size = 384
         c.data.train.max_msa_clusters = 512
-        c.loss.violation.weight = 1.
+        c.loss.violation.weight = 1.0
         c.loss.experimentally_resolved.weight = 0.01
     elif name == "finetuning_ptm":
         c.data.train.max_extra_msa = 5120
         c.data.train.crop_size = 384
         c.data.train.max_msa_clusters = 512
-        c.loss.violation.weight = 1.
+        c.loss.violation.weight = 1.0
         c.loss.experimentally_resolved.weight = 0.01
         c.model.heads.tm.enabled = True
         c.loss.tm.weight = 0.1
@@ -82,7 +80,7 @@ def model_config(name, train=False, low_prec=False):
         c.model.template.enabled = False
     elif name == "model_1_ptm":
         c.data.train.max_extra_msa = 5120
-        c.data.predict.max_extra_msa = 5120 
+        c.data.predict.max_extra_msa = 5120
         c.data.common.reduce_max_clusters_by_max_templates = True
         c.data.common.use_templates = True
         c.data.common.use_template_torsion_angles = True
@@ -200,24 +198,38 @@ config = mlc.ConfigDict(
                     "template_aatype": [NUM_TEMPLATES, NUM_RES],
                     "template_all_atom_mask": [NUM_TEMPLATES, NUM_RES, None],
                     "template_all_atom_positions": [
-                        NUM_TEMPLATES, NUM_RES, None, None,
+                        NUM_TEMPLATES,
+                        NUM_RES,
+                        None,
+                        None,
                     ],
                     "template_alt_torsion_angles_sin_cos": [
-                        NUM_TEMPLATES, NUM_RES, None, None,
+                        NUM_TEMPLATES,
+                        NUM_RES,
+                        None,
+                        None,
                     ],
                     "template_backbone_rigid_mask": [NUM_TEMPLATES, NUM_RES],
                     "template_backbone_rigid_tensor": [
-                        NUM_TEMPLATES, NUM_RES, None, None,
+                        NUM_TEMPLATES,
+                        NUM_RES,
+                        None,
+                        None,
                     ],
                     "template_mask": [NUM_TEMPLATES],
                     "template_pseudo_beta": [NUM_TEMPLATES, NUM_RES, None],
                     "template_pseudo_beta_mask": [NUM_TEMPLATES, NUM_RES],
                     "template_sum_probs": [NUM_TEMPLATES, None],
                     "template_torsion_angles_mask": [
-                        NUM_TEMPLATES, NUM_RES, None,
+                        NUM_TEMPLATES,
+                        NUM_RES,
+                        None,
                     ],
                     "template_torsion_angles_sin_cos": [
-                        NUM_TEMPLATES, NUM_RES, None, None,
+                        NUM_TEMPLATES,
+                        NUM_RES,
+                        None,
+                        None,
                     ],
                     "true_msa": [NUM_MSA_SEQ, NUM_RES],
                     "use_clamped_fape": [],
@@ -548,7 +560,7 @@ config = mlc.ConfigDict(
                 "min_resolution": 0.1,
                 "max_resolution": 3.0,
                 "eps": eps,  # 1e-8,
-                "weight": 0.,
+                "weight": 0.0,
                 "enabled": tm_enabled,
             },
             "eps": eps,

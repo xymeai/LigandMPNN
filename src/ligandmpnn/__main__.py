@@ -9,8 +9,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from prody import writePDB
 from loguru import logger
+from prody import writePDB
 
 from ligandmpnn.data import (
     alphabet,
@@ -26,7 +26,7 @@ from ligandmpnn.data import (
 )
 from ligandmpnn.models import ProteinMPNN
 from ligandmpnn.params import fetch_original_params
-from ligandmpnn.paths import REPO_DIR, MODEL_PARAMS_DIR
+from ligandmpnn.paths import MODEL_PARAMS_DIR, REPO_DIR
 from ligandmpnn.sidechain import Packer, pack_side_chains
 
 
@@ -127,15 +127,17 @@ def main(args) -> None:
         model_sc.eval()
 
     if args.pdb_path_multi:
-        with open(args.pdb_path_multi, "r") as fh:
+        with open(args.pdb_path_multi) as fh:
             pdb_paths = list(json.load(fh))
     else:
         pdb_paths = [args.pdb_path]
 
     if args.fixed_residues_multi:
-        with open(args.fixed_residues_multi, "r") as fh:
+        with open(args.fixed_residues_multi) as fh:
             fixed_residues_multi = json.load(fh)
-            fixed_residues_multi = {key:value.split() for key,value in fixed_residues_multi.items()}
+            fixed_residues_multi = {
+                key: value.split() for key, value in fixed_residues_multi.items()
+            }
     else:
         fixed_residues = [item for item in args.fixed_residues.split()]
         fixed_residues_multi = {}
@@ -143,9 +145,11 @@ def main(args) -> None:
             fixed_residues_multi[pdb] = fixed_residues
 
     if args.redesigned_residues_multi:
-        with open(args.redesigned_residues_multi, "r") as fh:
+        with open(args.redesigned_residues_multi) as fh:
             redesigned_residues_multi = json.load(fh)
-            redesigned_residues_multi = {key:value.split() for key,value in redesigned_residues_multi.items()}
+            redesigned_residues_multi = {
+                key: value.split() for key, value in redesigned_residues_multi.items()
+            }
     else:
         redesigned_residues = [item for item in args.redesigned_residues.split()]
         redesigned_residues_multi = {}
@@ -161,26 +165,26 @@ def main(args) -> None:
             bias_AA[restype_str_to_int[AA]] = a2[i]
 
     if args.bias_AA_per_residue_multi:
-        with open(args.bias_AA_per_residue_multi, "r") as fh:
+        with open(args.bias_AA_per_residue_multi) as fh:
             bias_AA_per_residue_multi = json.load(
                 fh
             )  # {"pdb_path" : {"A12": {"G": 1.1}}}
     else:
         if args.bias_AA_per_residue:
-            with open(args.bias_AA_per_residue, "r") as fh:
+            with open(args.bias_AA_per_residue) as fh:
                 bias_AA_per_residue = json.load(fh)  # {"A12": {"G": 1.1}}
             bias_AA_per_residue_multi = {}
             for pdb in pdb_paths:
                 bias_AA_per_residue_multi[pdb] = bias_AA_per_residue
 
     if args.omit_AA_per_residue_multi:
-        with open(args.omit_AA_per_residue_multi, "r") as fh:
+        with open(args.omit_AA_per_residue_multi) as fh:
             omit_AA_per_residue_multi = json.load(
                 fh
             )  # {"pdb_path" : {"A12": "PQR", "A13": "QS"}}
     else:
         if args.omit_AA_per_residue:
-            with open(args.omit_AA_per_residue, "r") as fh:
+            with open(args.omit_AA_per_residue) as fh:
                 omit_AA_per_residue = json.load(fh)  # {"A12": "PG"}
             omit_AA_per_residue_multi = {}
             for pdb in pdb_paths:
@@ -198,7 +202,6 @@ def main(args) -> None:
 
     # loop over PDB paths
     for pdb in pdb_paths:
-
         if not os.path.exists(pdb):
             logger.error(f"PDB path '{pdb}' does not exist, please check the path")
             return
@@ -225,9 +228,11 @@ def main(args) -> None:
         for i, R_idx_item in enumerate(R_idx_list):
             tmp = str(chain_letters_list[i]) + str(R_idx_item) + icodes[i]
             encoded_residues.append(tmp)
-        encoded_residue_dict = dict(zip(encoded_residues, range(len(encoded_residues))))
+        encoded_residue_dict = dict(
+            zip(encoded_residues, range(len(encoded_residues)), strict=False)
+        )
         encoded_residue_dict_rev = dict(
-            zip(list(range(len(encoded_residues))), encoded_residues)
+            zip(list(range(len(encoded_residues))), encoded_residues, strict=False)
         )
 
         bias_AA_per_residue = torch.zeros(
@@ -328,7 +333,9 @@ def main(args) -> None:
             ]
 
             if PDB_residues_to_be_redesigned:
-                logger.info(f"These residues will be redesigned: {PDB_residues_to_be_redesigned}")
+                logger.info(
+                    f"These residues will be redesigned: {PDB_residues_to_be_redesigned}"
+                )
             else:
                 logger.info("No residues will be redesigned")
 
@@ -568,19 +575,7 @@ def main(args) -> None:
 
             with open(output_fasta, "w") as f:
                 f.write(
-                    ">{}, T={}, seed={}, num_res={}, num_ligand_res={}, use_ligand_context={}, ligand_cutoff_distance={}, batch_size={}, number_of_batches={}, model_path={}\n{}\n".format(
-                        name,
-                        args.temperature,
-                        seed,
-                        torch.sum(rec_mask).cpu().numpy(),
-                        torch.sum(combined_mask[:1]).cpu().numpy(),
-                        bool(args.ligand_mpnn_use_atom_context),
-                        float(args.ligand_mpnn_cutoff_for_score),
-                        args.batch_size,
-                        args.number_of_batches,
-                        checkpoint_path,
-                        seq_out_str,
-                    )
+                    f">{name}, T={args.temperature}, seed={seed}, num_res={torch.sum(rec_mask).cpu().numpy()}, num_ligand_res={torch.sum(combined_mask[:1]).cpu().numpy()}, use_ligand_context={bool(args.ligand_mpnn_use_atom_context)}, ligand_cutoff_distance={float(args.ligand_mpnn_cutoff_for_score)}, batch_size={args.batch_size}, number_of_batches={args.number_of_batches}, model_path={checkpoint_path}\n{seq_out_str}\n"
                 )
                 for ix in range(S_stack.shape[0]):
                     ix_suffix = ix
@@ -672,29 +667,11 @@ def main(args) -> None:
                     if ix == S_stack.shape[0] - 1:
                         # final 2 lines
                         f.write(
-                            ">{}, id={}, T={}, seed={}, overall_confidence={}, ligand_confidence={}, seq_rec={}\n{}".format(
-                                name,
-                                ix_suffix,
-                                args.temperature,
-                                seed,
-                                loss_np,
-                                loss_XY_np,
-                                seq_rec_print,
-                                seq_out_str,
-                            )
+                            f">{name}, id={ix_suffix}, T={args.temperature}, seed={seed}, overall_confidence={loss_np}, ligand_confidence={loss_XY_np}, seq_rec={seq_rec_print}\n{seq_out_str}"
                         )
                     else:
                         f.write(
-                            ">{}, id={}, T={}, seed={}, overall_confidence={}, ligand_confidence={}, seq_rec={}\n{}\n".format(
-                                name,
-                                ix_suffix,
-                                args.temperature,
-                                seed,
-                                loss_np,
-                                loss_XY_np,
-                                seq_rec_print,
-                                seq_out_str,
-                            )
+                            f">{name}, id={ix_suffix}, T={args.temperature}, seed={seed}, overall_confidence={loss_np}, ligand_confidence={loss_XY_np}, seq_rec={seq_rec_print}\n{seq_out_str}\n"
                         )
 
 

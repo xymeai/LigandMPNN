@@ -76,13 +76,13 @@ def main(args) -> None:
     model.eval()
 
     if args.pdb_path_multi:
-        with open(args.pdb_path_multi, "r") as fh:
+        with open(args.pdb_path_multi) as fh:
             pdb_paths = list(json.load(fh))
     else:
         pdb_paths = [args.pdb_path]
 
     if args.fixed_residues_multi:
-        with open(args.fixed_residues_multi, "r") as fh:
+        with open(args.fixed_residues_multi) as fh:
             fixed_residues_multi = json.load(fh)
     else:
         fixed_residues = [item for item in args.fixed_residues.split()]
@@ -91,7 +91,7 @@ def main(args) -> None:
             fixed_residues_multi[pdb] = fixed_residues
 
     if args.redesigned_residues_multi:
-        with open(args.redesigned_residues_multi, "r") as fh:
+        with open(args.redesigned_residues_multi) as fh:
             redesigned_residues_multi = json.load(fh)
     else:
         redesigned_residues = [item for item in args.redesigned_residues.split()]
@@ -119,9 +119,11 @@ def main(args) -> None:
         for i, R_idx_item in enumerate(R_idx_list):
             tmp = str(chain_letters_list[i]) + str(R_idx_item) + icodes[i]
             encoded_residues.append(tmp)
-        encoded_residue_dict = dict(zip(encoded_residues, range(len(encoded_residues))))
+        encoded_residue_dict = dict(
+            zip(encoded_residues, range(len(encoded_residues)), strict=False)
+        )
         encoded_residue_dict_rev = dict(
-            zip(list(range(len(encoded_residues))), encoded_residues)
+            zip(list(range(len(encoded_residues))), encoded_residues, strict=False)
         )
 
         fixed_positions = torch.tensor(
@@ -324,9 +326,9 @@ def main(args) -> None:
             mean_dict = {}
             std_dict = {}
             for residue in range(L):
-                mean_dict_ = dict(zip(alphabet, mean_probs[residue]))
+                mean_dict_ = dict(zip(alphabet, mean_probs[residue], strict=False))
                 mean_dict[encoded_residue_dict_rev[residue]] = mean_dict_
-                std_dict_ = dict(zip(alphabet, std_probs[residue]))
+                std_dict_ = dict(zip(alphabet, std_probs[residue], strict=False))
                 std_dict[encoded_residue_dict_rev[residue]] = std_dict_
 
             out_dict["sequence"] = sequence

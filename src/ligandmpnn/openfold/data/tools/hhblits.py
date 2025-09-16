@@ -14,14 +14,15 @@
 # limitations under the License.
 
 """Library to run HHblits from Python."""
+
 import glob
 import logging
 import os
 import subprocess
-from typing import Any, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from ligandmpnn.openfold.data.tools import utils
-
 
 _HHBLITS_DEFAULT_P = 20
 _HHBLITS_DEFAULT_Z = 500
@@ -43,7 +44,7 @@ class HHBlits:
         maxfilt: int = 100_000,
         min_prefilter_hits: int = 1000,
         all_seqs: bool = False,
-        alt: Optional[int] = None,
+        alt: int | None = None,
         p: int = _HHBLITS_DEFAULT_P,
         z: int = _HHBLITS_DEFAULT_Z,
     ):
@@ -80,12 +81,8 @@ class HHBlits:
 
         for database_path in self.databases:
             if not glob.glob(database_path + "_*"):
-                logging.error(
-                    "Could not find HHBlits database %s", database_path
-                )
-                raise ValueError(
-                    f"Could not find HHBlits database {database_path}"
-                )
+                logging.error("Could not find HHBlits database %s", database_path)
+                raise ValueError(f"Could not find HHBlits database {database_path}")
 
         self.n_cpu = n_cpu
         self.n_iter = n_iter

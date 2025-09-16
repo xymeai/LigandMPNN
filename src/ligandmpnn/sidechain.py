@@ -12,7 +12,10 @@ from ligandmpnn.models import (
     gather_edges,
     gather_nodes,
 )
-from ligandmpnn.openfold.data.data_transforms import atom37_to_torsion_angles, make_atom14_masks
+from ligandmpnn.openfold.data.data_transforms import (
+    atom37_to_torsion_angles,
+    make_atom14_masks,
+)
 from ligandmpnn.openfold.np.residue_constants import (
     restype_atom14_mask,
     restype_atom14_rigid_group_positions,

@@ -14,9 +14,10 @@
 # limitations under the License.
 
 """A Python wrapper for Kalign."""
+
 import os
 import subprocess
-from typing import Sequence
+from collections.abc import Sequence
 
 from absl import logging
 
@@ -27,9 +28,9 @@ def _to_a3m(sequences: Sequence[str]) -> str:
     """Converts sequences to an a3m file."""
     names = ["sequence %d" % i for i in range(1, len(sequences) + 1)]
     a3m = []
-    for sequence, name in zip(sequences, names):
-        a3m.append(u">" + name + u"\n")
-        a3m.append(sequence + u"\n")
+    for sequence, name in zip(sequences, names, strict=False):
+        a3m.append(">" + name + "\n")
+        a3m.append(sequence + "\n")
     return "".join(a3m)
 
 

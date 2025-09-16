@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import copy
-from typing import Mapping, Tuple, List, Optional, Dict, Sequence
+from collections.abc import Mapping, Sequence
 
 import ml_collections
 import numpy as np
@@ -22,9 +22,8 @@ import torch
 
 from ligandmpnn.openfold.data import input_pipeline
 
-
 FeatureDict = Mapping[str, np.ndarray]
-TensorDict = Dict[str, torch.Tensor]
+TensorDict = dict[str, torch.Tensor]
 
 
 def np_to_tensor_dict(
@@ -40,10 +39,8 @@ def np_to_tensor_dict(
     Returns:
         A dictionary of features mapping feature names to features. Only the given
         features are returned, all other ones are filtered out.
-    """ 
-    tensor_dict = {
-        k: torch.tensor(v) for k, v in np_example.items() if k in features
-    }
+    """
+    tensor_dict = {k: torch.tensor(v) for k, v in np_example.items() if k in features}
 
     return tensor_dict
 
@@ -52,7 +49,7 @@ def make_data_config(
     config: ml_collections.ConfigDict,
     mode: str,
     num_res: int,
-) -> Tuple[ml_collections.ConfigDict, List[str]]:
+) -> tuple[ml_collections.ConfigDict, list[str]]:
     cfg = copy.deepcopy(config)
     mode_cfg = cfg[mode]
     with cfg.unlocked():
@@ -80,13 +77,11 @@ def np_example_to_features(
     cfg, feature_names = make_data_config(config, mode=mode, num_res=num_res)
 
     if "deletion_matrix_int" in np_example:
-        np_example["deletion_matrix"] = np_example.pop(
-            "deletion_matrix_int"
-        ).astype(np.float32)
+        np_example["deletion_matrix"] = np_example.pop("deletion_matrix_int").astype(
+            np.float32
+        )
 
-    tensor_dict = np_to_tensor_dict(
-        np_example=np_example, features=feature_names
-    )
+    tensor_dict = np_to_tensor_dict(np_example=np_example, features=feature_names)
     with torch.no_grad():
         features = input_pipeline.process_tensors_from_config(
             tensor_dict,
@@ -107,7 +102,7 @@ class FeaturePipeline:
     def process_features(
         self,
         raw_features: FeatureDict,
-        mode: str = "train", 
+        mode: str = "train",
     ) -> FeatureDict:
         return np_example_to_features(
             np_example=raw_features,

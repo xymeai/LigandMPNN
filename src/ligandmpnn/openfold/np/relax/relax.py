@@ -14,14 +14,19 @@
 # limitations under the License.
 
 """Amber relaxation."""
-from typing import Any, Dict, Sequence, Tuple
-from ligandmpnn.openfold.np import protein
-from ligandmpnn.openfold.np.relax import amber_minimize, utils
+
+from collections.abc import Sequence
+from typing import Any
+
 import numpy as np
 
+from ligandmpnn.openfold.np import protein
+from ligandmpnn.openfold.np.relax import amber_minimize, utils
 
-class AmberRelaxation(object):
+
+class AmberRelaxation:
     """Amber relaxation."""
+
     def __init__(
         self,
         *,
@@ -58,7 +63,7 @@ class AmberRelaxation(object):
 
     def process(
         self, *, prot: protein.Protein
-    ) -> Tuple[str, Dict[str, Any], np.ndarray]:
+    ) -> tuple[str, dict[str, Any], np.ndarray]:
         """Runs Amber relax on a prediction, adds hydrogens, returns PDB string."""
         out = amber_minimize.run_pipeline(
             prot=prot,
@@ -84,9 +89,7 @@ class AmberRelaxation(object):
         utils.assert_equal_nonterminal_atom_types(
             protein.from_pdb_string(min_pdb).atom_mask, prot.atom_mask
         )
-        violations = out["structural_violations"][
-            "total_per_residue_violations_mask"
-        ]
+        violations = out["structural_violations"]["total_per_residue_violations_mask"]
 
         min_pdb = protein.add_pdb_headers(prot, min_pdb)
 

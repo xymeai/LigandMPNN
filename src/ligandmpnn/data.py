@@ -198,7 +198,7 @@ element_list = [
 ]
 element_list = [item.upper() for item in element_list]
 # element_dict = dict(zip(element_list, range(1,len(element_list))))
-element_dict_rev = dict(zip(range(1, len(element_list)), element_list))
+element_dict_rev = dict(zip(range(1, len(element_list)), element_list, strict=False))
 
 
 def get_seq_rec(S: torch.Tensor, S_pred: torch.Tensor, mask: torch.Tensor):
@@ -644,7 +644,7 @@ def parse_PDB(
         "Uuo",
     ]
     element_list = [item.upper() for item in element_list]
-    element_dict = dict(zip(element_list, range(1, len(element_list))))
+    element_dict = dict(zip(element_list, range(1, len(element_list)), strict=False))
     restype_3to1 = {
         "ALA": "A",
         "ARG": "R",

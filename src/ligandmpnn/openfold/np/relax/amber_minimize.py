@@ -17,21 +17,21 @@
 
 import io
 import time
-from typing import Collection, Optional, Sequence
+from collections.abc import Collection, Sequence
 
+import ml_collections
+import numpy as np
 from absl import logging
+from simtk import openmm, unit
+from simtk.openmm import app as openmm_app
+from simtk.openmm.app.internal.pdbstructure import PdbStructure
+
+import ligandmpnn.openfold.utils.loss as loss
 from ligandmpnn.openfold.np import (
     protein,
     residue_constants,
 )
-import ligandmpnn.openfold.utils.loss as loss
 from ligandmpnn.openfold.np.relax import cleanup, utils
-import ml_collections
-import numpy as np
-from simtk import openmm
-from simtk import unit
-from simtk.openmm import app as openmm_app
-from simtk.openmm.app.internal.pdbstructure import PdbStructure
 
 ENERGY = unit.kilocalories_per_mole
 LENGTH = unit.angstroms
@@ -56,9 +56,7 @@ def _add_restraints(
     """Adds a harmonic potential that restrains the system to a structure."""
     assert rset in ["non_hydrogen", "c_alpha"]
 
-    force = openmm.CustomExternalForce(
-        "0.5 * k * ((x-x0)^2 + (y-y0)^2 + (z-z0)^2)"
-    )
+    force = openmm.CustomExternalForce("0.5 * k * ((x-x0)^2 + (y-y0)^2 + (z-z0)^2)")
     force.addGlobalParameter("k", stiffness)
     for p in ["x0", "y0", "z0"]:
         force.addPerParticleParameter(p)
@@ -93,14 +91,12 @@ def _openmm_minimize(
     force_field = openmm_app.ForceField("amber99sb.xml")
     constraints = openmm_app.HBonds
     system = force_field.createSystem(pdb.topology, constraints=constraints)
-    if stiffness > 0 * ENERGY / (LENGTH ** 2):
+    if stiffness > 0 * ENERGY / (LENGTH**2):
         _add_restraints(system, pdb, stiffness, restraint_set, exclude_residues)
 
     integrator = openmm.LangevinIntegrator(0, 0.01, 0.0)
     platform = openmm.Platform.getPlatformByName("CUDA" if use_gpu else "CPU")
-    simulation = openmm_app.Simulation(
-        pdb.topology, system, integrator, platform
-    )
+    simulation = openmm_app.Simulation(pdb.topology, system, integrator, platform)
     simulation.context.setPositions(pdb.positions)
 
     ret = {}
@@ -131,15 +127,13 @@ def _check_cleaned_atoms(pdb_cleaned_string: str, pdb_ref_string: str):
     ref_xyz = np.array(reference.getPositions().value_in_unit(LENGTH))
 
     for ref_res, cl_res in zip(
-        reference.topology.residues(), cleaned.topology.residues()
+        reference.topology.residues(), cleaned.topology.residues(), strict=False
     ):
         assert ref_res.name == cl_res.name
         for rat in ref_res.atoms():
             for cat in cl_res.atoms():
                 if cat.name == rat.name:
-                    if not np.array_equal(
-                        cl_xyz[cat.index], ref_xyz[rat.index]
-                    ):
+                    if not np.array_equal(cl_xyz[cat.index], ref_xyz[rat.index]):
                         raise ValueError(
                             f"Coordinates of cleaned atom {cat} do not match "
                             f"coordinates of reference atom {rat}."
@@ -192,11 +186,11 @@ def clean_protein(prot: protein.Protein, checks: bool = True):
     pdb_string = _get_pdb_string(as_file.getTopology(), as_file.getPositions())
     if checks:
         _check_cleaned_atoms(pdb_string, prot_pdb_string)
-    
-    headers = protein.get_pdb_headers(prot)    
-    if(len(headers) > 0):
-        pdb_string = '\n'.join(['\n'.join(headers), pdb_string])
-    
+
+    headers = protein.get_pdb_headers(prot)
+    if len(headers) > 0:
+        pdb_string = "\n".join(["\n".join(headers), pdb_string])
+
     return pdb_string
 
 
@@ -212,10 +206,7 @@ def make_atom14_positions(prot):
         ]
 
         restype_atom14_to_atom37.append(
-            [
-                (residue_constants.atom_order[name] if name else 0)
-                for name in atom_names
-            ]
+            [(residue_constants.atom_order[name] if name else 0) for name in atom_names]
         )
 
         atom_name_to_idx14 = {name: i for i, name in enumerate(atom_names)}
@@ -226,21 +217,15 @@ def make_atom14_positions(prot):
             ]
         )
 
-        restype_atom14_mask.append(
-            [(1.0 if name else 0.0) for name in atom_names]
-        )
+        restype_atom14_mask.append([(1.0 if name else 0.0) for name in atom_names])
 
     # Add dummy mapping for restype 'UNK'.
     restype_atom14_to_atom37.append([0] * 14)
     restype_atom37_to_atom14.append([0] * 37)
     restype_atom14_mask.append([0.0] * 14)
 
-    restype_atom14_to_atom37 = np.array(
-        restype_atom14_to_atom37, dtype=np.int32
-    )
-    restype_atom37_to_atom14 = np.array(
-        restype_atom37_to_atom14, dtype=np.int32
-    )
+    restype_atom14_to_atom37 = np.array(restype_atom14_to_atom37, dtype=np.int32)
+    restype_atom37_to_atom14 = np.array(restype_atom37_to_atom14, dtype=np.int32)
     restype_atom14_mask = np.array(restype_atom14_mask, dtype=np.float32)
 
     # Create the mapping for (residx, atom14) --> atom37, i.e. an array
@@ -287,8 +272,7 @@ def make_atom14_positions(prot):
     # As the atom naming is ambiguous for 7 of the 20 amino acids, provide
     # alternative ground truth coordinates where the naming is swapped
     restype_3 = [
-        residue_constants.restype_1to3[res]
-        for res in residue_constants.restypes
+        residue_constants.restype_1to3[res] for res in residue_constants.restypes
     ]
     restype_3 += ["UNK"]
 
@@ -309,9 +293,7 @@ def make_atom14_positions(prot):
             for index, correspondence in enumerate(correspondences):
                 renaming_matrix[index, correspondence] = 1.0
         all_matrices[resname] = renaming_matrix.astype(np.float32)
-    renaming_matrices = np.stack(
-        [all_matrices[restype] for restype in restype_3]
-    )
+    renaming_matrices = np.stack([all_matrices[restype] for restype in restype_3])
 
     # Pick the transformation matrices for the given residue sequence
     # shape (num_res, 14, 14).
@@ -339,19 +321,17 @@ def make_atom14_positions(prot):
             restype = residue_constants.restype_order[
                 residue_constants.restype_3to1[resname]
             ]
-            atom_idx1 = residue_constants.restype_name_to_atom14_names[
-                resname
-            ].index(atom_name1)
-            atom_idx2 = residue_constants.restype_name_to_atom14_names[
-                resname
-            ].index(atom_name2)
+            atom_idx1 = residue_constants.restype_name_to_atom14_names[resname].index(
+                atom_name1
+            )
+            atom_idx2 = residue_constants.restype_name_to_atom14_names[resname].index(
+                atom_name2
+            )
             restype_atom14_is_ambiguous[restype, atom_idx1] = 1
             restype_atom14_is_ambiguous[restype, atom_idx2] = 1
 
     # From this create an ambiguous_mask for the given sequence.
-    prot["atom14_atom_is_ambiguous"] = restype_atom14_is_ambiguous[
-        prot["aatype"]
-    ]
+    prot["atom14_atom_is_ambiguous"] = restype_atom14_is_ambiguous[prot["aatype"]]
 
     return prot
 
@@ -416,7 +396,7 @@ def _run_one_iteration(
     stiffness: float,
     restraint_set: str,
     max_attempts: int,
-    exclude_residues: Optional[Collection[int]] = None,
+    exclude_residues: Collection[int] | None = None,
     use_gpu: bool,
 ):
     """Runs the minimization pipeline.
@@ -440,7 +420,7 @@ def _run_one_iteration(
 
     # Assign physical dimensions.
     tolerance = tolerance * ENERGY
-    stiffness = stiffness * ENERGY / (LENGTH ** 2)
+    stiffness = stiffness * ENERGY / (LENGTH**2)
 
     start = time.perf_counter()
     minimized = False
@@ -482,7 +462,7 @@ def run_pipeline(
     restraint_set: str = "non_hydrogen",
     max_attempts: int = 100,
     checks: bool = True,
-    exclude_residues: Optional[Sequence[int]] = None,
+    exclude_residues: Sequence[int] | None = None,
 ):
     """Run iterative amber relax.
 
@@ -535,11 +515,11 @@ def run_pipeline(
             max_attempts=max_attempts,
             use_gpu=use_gpu,
         )
-        
-        headers = protein.get_pdb_headers(prot)    
-        if(len(headers) > 0):
-            ret["min_pdb"] = '\n'.join(['\n'.join(headers), ret["min_pdb"]])
-        
+
+        headers = protein.get_pdb_headers(prot)
+        if len(headers) > 0:
+            ret["min_pdb"] = "\n".join(["\n".join(headers), ret["min_pdb"]])
+
         prot = protein.from_pdb_string(ret["min_pdb"])
         if place_hydrogens_every_iteration:
             pdb_string = clean_protein(prot, checks=True)
@@ -572,7 +552,7 @@ def get_initial_energies(
     pdb_strs: Sequence[str],
     stiffness: float = 0.0,
     restraint_set: str = "non_hydrogen",
-    exclude_residues: Optional[Sequence[int]] = None,
+    exclude_residues: Sequence[int] | None = None,
 ):
     """Returns initial potential energies for a sequence of PDBs.
 
@@ -593,15 +573,13 @@ def get_initial_energies(
     """
     exclude_residues = exclude_residues or []
 
-    openmm_pdbs = [
-        openmm_app.PDBFile(PdbStructure(io.StringIO(p))) for p in pdb_strs
-    ]
+    openmm_pdbs = [openmm_app.PDBFile(PdbStructure(io.StringIO(p))) for p in pdb_strs]
     force_field = openmm_app.ForceField("amber99sb.xml")
     system = force_field.createSystem(
         openmm_pdbs[0].topology, constraints=openmm_app.HBonds
     )
-    stiffness = stiffness * ENERGY / (LENGTH ** 2)
-    if stiffness > 0 * ENERGY / (LENGTH ** 2):
+    stiffness = stiffness * ENERGY / (LENGTH**2)
+    if stiffness > 0 * ENERGY / (LENGTH**2):
         _add_restraints(
             system, openmm_pdbs[0], stiffness, restraint_set, exclude_residues
         )
@@ -618,8 +596,6 @@ def get_initial_energies(
             state = simulation.context.getState(getEnergy=True)
             energies.append(state.getPotentialEnergy().value_in_unit(ENERGY))
         except Exception as e:  # pylint: disable=broad-except
-            logging.error(
-                "Error getting initial energy, returning large value %s", e
-            )
+            logging.error("Error getting initial energy, returning large value %s", e)
             energies.append(unit.Quantity(1e20, ENERGY))
     return energies
