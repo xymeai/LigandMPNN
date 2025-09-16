@@ -21,10 +21,6 @@ COPY uv.lock uv.lock
 COPY pyproject.toml pyproject.toml
 RUN uv sync --frozen --no-install-project --dev
 
-# Get the model parameters
-COPY ./scripts/get_model_params.sh ./scripts/get_model_params.sh
-RUN bash ./scripts/get_model_params.sh "./model_params"
-
 # Build the final image
 FROM builder
 
