@@ -9,9 +9,9 @@ readme = "README.md"
 requires-python = ">=3.11,<3.12"
 version = "1.0.0"
 dependencies = [
-    "numpy~=1.23.5",
+    "numpy>=1.26.0",
     "biopython~=1.79",
-    "prody~=2.4.1",
+    "prody>=2.4.1",
     "torch>=2.5.1",
     "ml-collections~=0.1.1",
     "dm-tree~=0.1.8",
