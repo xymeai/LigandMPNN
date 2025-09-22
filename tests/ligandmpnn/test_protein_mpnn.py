@@ -5,8 +5,10 @@ import sys
 from tests.conftest import OUTPUTS_DIR, INPUTS_DIR
 
 
-def test_protein_mpnn_output_unchanged(protein_mpnn_seed_111_1bc8_backbone, protein_mpnn_seed_111_1bc8_seq):
-    test_outputs_dir = OUTPUTS_DIR / 'test_protein_mpnn_output_unchanged'
+def test_protein_mpnn_output_unchanged(
+    protein_mpnn_seed_111_1bc8_backbone, protein_mpnn_seed_111_1bc8_seq
+):
+    test_outputs_dir = OUTPUTS_DIR / "test_protein_mpnn_output_unchanged"
 
     if test_outputs_dir.exists():
         shutil.rmtree(test_outputs_dir)
