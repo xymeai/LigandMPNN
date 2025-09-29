@@ -18,10 +18,9 @@ def download_single_s3_file(object_key: str, dest: Path):
     s3 = boto3.client("s3")
 
     if dest.exists():
-        logger.info(f"Skipping existing file: {dest}")
+        logger.debug(f"Skipping existing file: {dest}")
         return
 
-    logger.info(f"Downloading {object_key} from S3...")
     s3.download_file(
         LIGANDMPNN_MODEL_PARAMS_BUCKET,
         f"protein-science/LigandMPNN_models/{object_key}",
@@ -40,7 +39,9 @@ def download_model_parameters(model_parameter_dir: Path = MODEL_PARAMS_DIR) -> N
 
     object_keys = [Path(uri).name for uri in parameter_file_uris]
 
+    logger.info(f"Checking models from S3...")
     Parallel(n_jobs=multiprocessing.cpu_count() * 2, prefer="threads")(
         delayed(download_single_s3_file)(key, destination_path(key))
         for key in object_keys
     )
+    logger.info(f"Models downloaded: {len(object_keys)}")
