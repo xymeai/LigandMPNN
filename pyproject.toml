@@ -7,7 +7,7 @@ name = "ligandmpnn"
 description = "LigandMPNN is a deep-learning-based protein sequence design method that can explicitly model all nonprotein components of biomolecular systems"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
-version = "1.0.0"
+version = "1.1.1"
 dependencies = [
     "numpy>=1.26.0",
     "biopython~=1.79",
@@ -21,7 +21,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "loguru>=0.7.3",
     "pytorch-lightning>=2.5.5",
-    "boto3>=1.40.35",
+    "boto3>=1.0.0",
     "joblib>=1.5.2",
 ]
 
@@ -36,6 +36,7 @@ ligandmpnn = "ligandmpnn:__main__"
 dev = [
     "ruff>=0.7.3",
     "pytest>=8.0",
+    "pyright>=1.1.405",
 ]
 
 [tool.pytest.ini_options]

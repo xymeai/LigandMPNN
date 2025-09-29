@@ -27,6 +27,10 @@ test:
     python -m pytest tests
 
 # Format the code
+lint:
+    pyright .
+
+# Format the code
 format:
     ruff format
 

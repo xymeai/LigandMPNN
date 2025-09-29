@@ -25,8 +25,8 @@ from ligandmpnn.data import (
     write_full_PDB,
 )
 from ligandmpnn.models import ProteinMPNN
-from ligandmpnn.params import fetch_original_uw_params
 from ligandmpnn.paths import MODEL_PARAMS_DIR, REPO_DIR
+from ligandmpnn.params import download_models
 from ligandmpnn.sidechain import Packer, pack_side_chains
 
 
@@ -34,7 +34,7 @@ def main(args) -> None:
     """
     Inference function
     """
-    asyncio.run(fetch_original_uw_params())
+    download_models()
 
     if args.seed:
         seed = args.seed
