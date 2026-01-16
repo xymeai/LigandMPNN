@@ -24,12 +24,14 @@ def download_models(
     if source == Source.xyme:
         try:
             xyme.download_model_parameters(model_parameters_dir)
-        except NoCredentialsError:
+        except NoCredentialsError as error:
             logger.error(
                 "AWS credentials not found. Please configure your AWS credentials."
             )
-        except ClientError as e:  # expired tokens
-            logger.error(f"Failed to download models from S3: {e}")
+            raise error
+        except ClientError as error:  # expired tokens
+            logger.error(f"Failed to download models from S3: {error}")
+            raise error
         except KeyboardInterrupt:
             logger.info("Download interrupted by impatient user...")
     elif source == Source.washingtonUniversity:
