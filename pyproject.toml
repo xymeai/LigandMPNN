@@ -23,6 +23,7 @@ dependencies = [
     "pytorch-lightning>=2.5.5",
     "boto3>=1.0.0",
     "joblib>=1.5.2",
+    "xyme-lake>=0.16.0",
 ]
 
 [project.urls]
@@ -45,6 +46,10 @@ addopts = ["--doctest-modules"]
 norecursedirs = [
     "inputs",
 ]
+pythonpath = [
+    "src"
+]
+
 
 [tool.ruff]
 line-length = 88
@@ -90,12 +95,12 @@ convention = "numpy"
 
 
 [[tool.uv.index]]
-name = "xyme-pypi-dev"
-url = "https://pypi.dev.xyme.cloud/"
-publish-url = "https://pypi.dev.xyme.cloud/"
-
-
-[[tool.uv.index]]
 name = "xyme-pypi"
 url = "https://pypi.prd.xyme.cloud/"
 publish-url = "https://pypi.prd.xyme.cloud/"
+
+
+[[tool.uv.index]]
+name = "xyme-pypi-dev"
+url = "https://pypi.dev.xyme.cloud/"
+publish-url = "https://pypi.dev.xyme.cloud/"
