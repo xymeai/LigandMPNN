@@ -658,8 +658,10 @@ class ProteinMPNN(torch.nn.Module):
         One decoder pass with the sequence-context mask zeroed everywhere, so no
         position sees any decoded residue. Unlike ``sample``/``score``, whose
         conditionals depend on the decoding order, this is order-independent —
-        it is the structure-conditioned prior. Equivalent in intent to
-        ``single_aa_score(use_sequence=False)`` but one pass rather than L.
+        it is the structure-conditioned prior. It answers the same question as
+        ``single_aa_score(use_sequence=False)`` but not numerically the same way:
+        there, a position's neighbours still carry sequence context through the
+        decoder; here, no position sees any — this one is the stricter prior.
         """
         B_decoder = feature_dict["batch_size"]
         S_true = feature_dict["S"]
