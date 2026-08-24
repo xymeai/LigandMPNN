@@ -285,7 +285,12 @@ def main(args) -> None:
                     [feature_dict["batch_size"], feature_dict["mask"].shape[1]],
                     device=device,
                 )
-                if args.autoregressive_score:
+                # ↓ tested first: single_aa_score defaults to 1, so it would otherwise
+                #   shadow an unconditional_probs_only-only request.
+                if args.unconditional_probs_only:
+                    score_dict = model.unconditional_probs(feature_dict)
+                    mode = "unconditional"
+                elif args.autoregressive_score:
                     score_dict = model.score(
                         feature_dict, use_sequence=args.use_sequence
                     )
@@ -295,12 +300,10 @@ def main(args) -> None:
                         feature_dict, use_sequence=args.use_sequence
                     )
                     mode = "single_aa"
-                elif args.unconditional_probs_only:
-                    score_dict = model.unconditional_probs(feature_dict)
-                    mode = "unconditional"
                 else:
                     print(
-                        "Set one of autoregressive_score, single_aa_score or unconditional_probs_only"
+                        "Set one of autoregressive_score, single_aa_score or "
+                        "unconditional_probs_only (single_aa_score defaults to 1)"
                     )
                     sys.exit()
                 logits_list.append(score_dict["logits"])

@@ -92,7 +92,11 @@ class TestScoreArgsSurface:
 
 class TestScoreMainUnconditional:
     def test_writes_a_self_describing_pt(self, tmp_path, monkeypatch):
-        """Runs the real score.main against a randomly initialised checkpoint."""
+        """Runs the real score.main against a randomly initialised checkpoint.
+
+        ↓ Only --unconditional_probs_only is set — the single-flag path a real
+          caller would use, now that it is tested first in the mode chain.
+        """
         import torch
 
         from ligandmpnn import score
@@ -124,8 +128,6 @@ class TestScoreMainUnconditional:
                 str(INPUTS_DIR / "1BC8.pdb"),
                 "--out_folder",
                 str(tmp_path) + "/",
-                "--single_aa_score",
-                "0",
                 "--unconditional_probs_only",
                 "1",
                 "--seed",
@@ -143,3 +145,7 @@ class TestScoreMainUnconditional:
         assert "decoding_order" not in loaded
         assert len(loaded["alphabet"]) == loaded["probs"].shape[-1] == 21
         assert loaded["probs"].shape[1] == len(loaded["residue_names"])
+        # ↓ a valid distribution, not just the right shape — catches a
+        #   miswired forward pass that shape/key checks alone would miss.
+        row_sums = loaded["probs"].sum(axis=-1)
+        assert (abs(row_sums - 1.0) < 1e-5).all()
