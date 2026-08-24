@@ -652,6 +652,43 @@ class ProteinMPNN(torch.nn.Module):
         }
         return output_dict
 
+    def unconditional_probs(self, feature_dict):
+        """Per-position amino-acid distribution given the backbone alone.
+
+        One decoder pass with the sequence-context mask zeroed everywhere, so no
+        position sees any decoded residue. Unlike ``sample``/``score``, whose
+        conditionals depend on the decoding order, this is order-independent —
+        it is the structure-conditioned prior. Equivalent in intent to
+        ``single_aa_score(use_sequence=False)`` but one pass rather than L.
+        """
+        B_decoder = feature_dict["batch_size"]
+        S_true = feature_dict["S"]
+        mask = feature_dict["mask"]
+        B, L = S_true.shape
+        device = S_true.device
+
+        h_V, h_E, E_idx = self.encode(feature_dict)
+        h_V = h_V.repeat(B_decoder, 1, 1)
+        h_E = h_E.repeat(B_decoder, 1, 1, 1)
+        E_idx = E_idx.repeat(B_decoder, 1, 1)
+        mask = mask.repeat(B_decoder, 1)
+
+        # ↓ zeros stand in for the residue-identity embedding: no sequence
+        #   information enters the decoder at any position.
+        h_S = torch.zeros([B_decoder, L, self.hidden_dim], device=device)
+        h_EX_encoder = cat_neighbors_nodes(h_S, h_E, E_idx)
+        h_EXV_encoder = cat_neighbors_nodes(h_V, h_EX_encoder, E_idx)
+        h_EXV_encoder_fw = mask.view([B_decoder, L, 1, 1]) * h_EXV_encoder
+
+        for layer in self.decoder_layers:
+            h_V = layer(h_V, h_EXV_encoder_fw, mask)
+
+        logits = self.W_out(h_V)
+        return {
+            "logits": logits,
+            "log_probs": torch.nn.functional.log_softmax(logits, dim=-1),
+        }
+
     def score(self, feature_dict, use_sequence: bool):
         B_decoder = feature_dict["batch_size"]
         S_true = feature_dict["S"]
