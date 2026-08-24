@@ -72,3 +72,74 @@ class TestUnconditionalProbs:
         scrambled_dict["S"] = torch.randint_like(feature_dict["S"], low=0, high=20)
         scrambled = model.unconditional_probs(scrambled_dict)["logits"]
         assert torch.allclose(native, scrambled, atol=1e-6)
+
+
+class TestScoreArgsSurface:
+    """The CLI contract xyme-tools builds a Namespace against."""
+
+    def test_parser_exposes_unconditional_probs_only(self):
+        from ligandmpnn.score import build_argparser
+
+        args = build_argparser().parse_args([])
+        assert args.unconditional_probs_only == 0
+
+    def test_flag_is_accepted(self):
+        from ligandmpnn.score import build_argparser
+
+        args = build_argparser().parse_args(["--unconditional_probs_only", "1"])
+        assert args.unconditional_probs_only == 1
+
+
+class TestScoreMainUnconditional:
+    def test_writes_a_self_describing_pt(self, tmp_path, monkeypatch):
+        """Runs the real score.main against a randomly initialised checkpoint."""
+        import torch
+
+        from ligandmpnn import score
+        from ligandmpnn.models import ProteinMPNN
+        from tests.conftest import INPUTS_DIR
+
+        net = ProteinMPNN(
+            node_features=128,
+            edge_features=128,
+            hidden_dim=128,
+            num_encoder_layers=3,
+            num_decoder_layers=3,
+            k_neighbors=8,
+            model_type="protein_mpnn",
+        )
+        ckpt = tmp_path / "tiny.pt"
+        torch.save(
+            {"model_state_dict": net.state_dict(), "num_edges": 8},
+            ckpt,
+        )
+
+        args = score.build_argparser().parse_args(
+            [
+                "--model_type",
+                "protein_mpnn",
+                "--checkpoint_protein_mpnn",
+                str(ckpt),
+                "--pdb_path",
+                str(INPUTS_DIR / "1BC8.pdb"),
+                "--out_folder",
+                str(tmp_path) + "/",
+                "--single_aa_score",
+                "0",
+                "--unconditional_probs_only",
+                "1",
+                "--seed",
+                "111",
+                "--verbose",
+                "0",
+            ]
+        )
+        score.main(args)
+
+        written = list(tmp_path.glob("1BC8*.pt"))
+        assert written, f"no .pt written into {tmp_path}"
+        loaded = torch.load(written[0], weights_only=False)
+        assert loaded["mode"] == "unconditional"
+        assert "decoding_order" not in loaded
+        assert len(loaded["alphabet"]) == loaded["probs"].shape[-1] == 21
+        assert loaded["probs"].shape[1] == len(loaded["residue_names"])

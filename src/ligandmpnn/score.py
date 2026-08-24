@@ -289,28 +289,44 @@ def main(args) -> None:
                     score_dict = model.score(
                         feature_dict, use_sequence=args.use_sequence
                     )
+                    mode = "autoregressive"
                 elif args.single_aa_score:
                     score_dict = model.single_aa_score(
                         feature_dict, use_sequence=args.use_sequence
                     )
+                    mode = "single_aa"
+                elif args.unconditional_probs_only:
+                    score_dict = model.unconditional_probs(feature_dict)
+                    mode = "unconditional"
                 else:
-                    print("Set either autoregressive_score or single_aa_score to True")
+                    print(
+                        "Set one of autoregressive_score, single_aa_score or unconditional_probs_only"
+                    )
                     sys.exit()
                 logits_list.append(score_dict["logits"])
                 log_probs_list.append(score_dict["log_probs"])
                 probs_list.append(torch.exp(score_dict["log_probs"]))
-                decoding_order_list.append(score_dict["decoding_order"])
+                # ↓ the unconditional mode has no decoding order to report.
+                if "decoding_order" in score_dict:
+                    decoding_order_list.append(score_dict["decoding_order"])
             log_probs_stack = torch.cat(log_probs_list, 0)
             logits_stack = torch.cat(logits_list, 0)
             probs_stack = torch.cat(probs_list, 0)
-            decoding_order_stack = torch.cat(decoding_order_list, 0)
+            decoding_order_stack = (
+                torch.cat(decoding_order_list, 0) if decoding_order_list else None
+            )
 
             output_stats_path = base_folder + name + args.file_ending + ".pt"
             out_dict = {}
             out_dict["logits"] = logits_stack.cpu().numpy()
             out_dict["probs"] = probs_stack.cpu().numpy()
             out_dict["log_probs"] = log_probs_stack.cpu().numpy()
-            out_dict["decoding_order"] = decoding_order_stack.cpu().numpy()
+            if decoding_order_stack is not None:
+                out_dict["decoding_order"] = decoding_order_stack.cpu().numpy()
+            # ↓ provenance: which quantity this file actually holds. Without it a
+            #   consumer cannot tell a prior from an autoregressive conditional,
+            #   and both look plausible.
+            out_dict["mode"] = mode
             out_dict["native_sequence"] = feature_dict["S"][0].cpu().numpy()
             out_dict["mask"] = feature_dict["mask"][0].cpu().numpy()
             out_dict["chain_mask"] = (
@@ -337,7 +353,7 @@ def main(args) -> None:
             torch.save(out_dict, output_stats_path)
 
 
-if __name__ == "__main__":
+def build_argparser() -> argparse.ArgumentParser:
     argparser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -552,5 +568,16 @@ if __name__ == "__main__":
         help="1 - run single amino acid scoring function; p(AA_i|backbone, AA_{all except ith one}), 0 - False",
     )
 
-    args = argparser.parse_args()
+    argparser.add_argument(
+        "--unconditional_probs_only",
+        type=int,
+        default=0,
+        help="Output per-position amino-acid probabilities conditioned on the backbone alone; single forward pass, decoding-order independent.",
+    )
+
+    return argparser
+
+
+if __name__ == "__main__":
+    args = build_argparser().parse_args()
     main(args)
