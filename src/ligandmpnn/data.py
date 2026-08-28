@@ -2,8 +2,10 @@ import numpy as np
 import torch
 import torch.utils
 from prody import *
+from prody.atomic import flags as _prody_flags
 
 confProDy(verbosity="none")
+
 
 restype_1to3 = {
     "A": "ALA",
@@ -28,6 +30,114 @@ restype_1to3 = {
     "V": "VAL",
     "X": "UNK",
 }
+
+# ### Non-canonical residues
+#
+# Two mappings govern two independent decisions, and both failed silently for any
+# non-canonical three-letter code.
+#
+# INCLUSION is ProDy's: positions come from ``atoms.select("protein")``, whose flag is a pure
+# residue-NAME membership test. A name ProDy does not know contributes no CA atom, so the
+# position disappears — and, being "not protein and not water", its atoms are handed to the
+# model as ligand context instead.
+#
+# IDENTITY is this module's, via ``restype_3to1``, which held the canonical 20 alone — so every
+# surviving non-canonical name decoded as ``X``.
+#
+# The two tiers below are treated differently ON PURPOSE. See TIER B for why registering a
+# modified residue with ProDy makes things worse rather than better.
+
+# TIER A — protonation / charge / bonding variants. The heavy-atom set is the parent's, so
+# presenting them as the parent is faithful and registering them with ProDy costs nothing.
+PROTONATION_VARIANT_3TO1: dict[str, str] = {
+    "ASH": "D", "GLH": "E", "ARN": "R", "LYN": "K", "CYM": "C", "CYX": "C", "TYM": "Y",
+    "SED": "S",
+    # histidine protonation states, in the Rosetta/AMBER and CHARMM spellings alike
+    "HID": "H", "HIE": "H", "HIP": "H", "HIC": "H", "NEP": "H",
+    "HSD": "H", "HSE": "H", "HSP": "H", "HISD": "H", "HISE": "H", "HISP": "H",
+}
+
+# TIER B — structurally modified residues: identity alias ONLY, deliberately NOT registered
+# with ProDy.
+#
+# A residue's atoms reach the model either as one of the 37 named backbone/side-chain slots or
+# as ligand context. A modification's extra atoms are in neither: name them ``protein`` and
+# they vanish from the model's input altogether. Measured on an LLP-shaped residue (PLP-lysine,
+# a cofactor of ~12 heavy atoms): unregistered it contributes 16 ligand-context atoms, and
+# registered it contributes 1 — the model would see a bare lysine where a PLP-lysine sits, and
+# design a pocket that clashes with the cofactor.
+#
+# So these get the identity fix where ProDy ALREADY knows the name (it does for MSE, PTR, SEP,
+# TPO, CME, CSO and others, whose atom loss therefore predates this module), and otherwise keep
+# today's behaviour, which is to be seen as substrate. That is the honest trade: an approximate
+# identity is worth having, invisible chemistry is not.
+MODIFIED_RESIDUE_3TO1: dict[str, str] = {
+    "MSE": "M", "PTR": "Y", "SEP": "S", "TPO": "T", "CME": "C", "CSO": "C", "PHD": "D",
+    "ALY": "K", "KCX": "K", "M3L": "K", "MLY": "K", "MLZ": "K", "LLP": "K", "ORN": "K",
+    "OCS": "C", "CSD": "C", "HYP": "P", "PCA": "Q", "NLE": "L", "NVA": "V", "ABA": "A",
+    "AIB": "A", "ALN": "F", "BIP": "F", "CHA": "F", "NAL": "F", "CGU": "E", "OIC": "P",
+    "TLE": "V", "TYS": "Y", "YCP": "P",
+}
+
+# Parent assignments come from ``ALT_RESIDUE_DETAILS`` in xyme-tools-datum, the ecosystem's
+# alias authority, and ``tests/test_noncanonical_residues.py`` asserts the two do not
+# contradict each other. That test SKIPS where xyme-tools-datum is not installed, which
+# includes this package's own CI — so treat it as a check that runs in the monorepo, not as an
+# unconditional guarantee here.
+#
+# ↓ SEC is absent deliberately: its parent is selenocysteine ``U``, which this model's
+#   20-letter alphabet does not contain, and mapping it to ``C`` would misreport the residue.
+#   ASX / GLX / XAA / XLE are absent because they are genuinely ambiguous.
+NONCANONICAL_3TO1: dict[str, str] = {**PROTONATION_VARIANT_3TO1, **MODIFIED_RESIDUE_3TO1}
+
+# ↓ restype_1to3 above is already one-letter -> three-letter; aliased, not restated.
+_CANONICAL_1TO3 = restype_1to3
+
+
+def _parent_prody_properties(parent_one_letter: str) -> set[str]:
+    """The parent residue's own ProDy property values, read from ProDy rather than hand-written.
+
+    ProDy wants one value per category for a non-standard registration. Deriving them from
+    ``CATEGORIZED`` keeps a single source of truth: a hand-maintained table of ~90 category
+    strings would be unfalsifiable, since none of them has an observable effect here (ProDy
+    freezes ``CATEGORIZED`` at its own import, so a late registration reaches ``protein`` and
+    ``aminoacid`` but no category macro).
+    """
+    parent = _CANONICAL_1TO3[parent_one_letter]
+    return {value for value, names in _prody_flags.CATEGORIZED.items() if parent in names}
+
+
+def _register_protonation_variants_with_prody() -> None:
+    """Teach ProDy the protonation-variant names it would otherwise drop.
+
+    ``addNonstdAminoacid`` is not used: it calls ``SETTINGS.save()``, and importing a parser
+    must not write to the user's ProDy settings file.
+
+    ``updateDefinitions`` reads ``SETTINGS[NONSTANDARD_KEY]`` IN PREFERENCE to the module-level
+    table, falling back only on ``KeyError`` — so mutating the module table alone is a silent
+    no-op on any machine where that key exists, which any previous ``addNonstdAminoacid`` or
+    ``resetDefinitions`` call put there permanently. Write to whichever table will actually be
+    read, in memory only, then VERIFY: a registration that did not take must fail loudly at
+    import rather than reinstate the silent drop it exists to prevent.
+    """
+    target = _prody_flags.SETTINGS.get(_prody_flags.NONSTANDARD_KEY)
+    if target is None:
+        target = _prody_flags.NONSTANDARD
+    for name, parent in PROTONATION_VARIANT_3TO1.items():
+        target.setdefault(name, _parent_prody_properties(parent))
+    _prody_flags.updateDefinitions()
+    known = flagDefinition("protein")
+    missing = sorted(n for n in PROTONATION_VARIANT_3TO1 if n not in known)
+    if missing:
+        raise RuntimeError(
+            f"ProDy did not register {missing}, so these residues would be dropped from every "
+            "decode and their atoms handed to the model as ligand context. Registration wrote "
+            f"to {'SETTINGS' if target is not _prody_flags.NONSTANDARD else 'NONSTANDARD'} and "
+            "the definitions were refreshed, so ProDy's own resolution order has changed."
+        )
+
+
+_register_protonation_variants_with_prody()
 restype_str_to_int = {
     "A": 0,
     "C": 1,
@@ -666,6 +776,8 @@ def parse_PDB(
         "TRP": "W",
         "TYR": "Y",
         "VAL": "V",
+        # ↓ non-canonical names decode as their canonical parent, not as X
+        **NONCANONICAL_3TO1,
     }
     restype_STRtoINT = {
         "A": 0,
