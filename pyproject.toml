@@ -21,7 +21,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "loguru>=0.7.3",
     "pytorch-lightning>=2.5.5",
-    "boto3>=1.0.0",
+    "boto3>=1.0.0,<2",
     "joblib>=1.5.2",
     "xyme-lake>=0.16.0",
 ]
