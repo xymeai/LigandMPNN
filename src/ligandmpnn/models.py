@@ -4,6 +4,69 @@ import sys
 import numpy as np
 import torch
 
+# ↓ The label a condition-aware model receives for a residue nobody labelled.
+#   Upstream TMB_MPNN uses it for native (non-barrel) proteins, and falls back to it
+#   for every residue when no labels are supplied at inference.
+NON_TMBB_CONDITION_LABEL = 3
+
+# ↓ What every checkpoint shipped before architecture metadata existed was trained at.
+#   Read as defaults, never as requirements: the 19 shipped checkpoints carry none of
+#   these keys and must keep loading unchanged.
+LEGACY_ARCHITECTURE = {
+    "node_features": 128,
+    "edge_features": 128,
+    "hidden_dim": 128,
+    "num_encoder_layers": 3,
+    "num_decoder_layers": 3,
+}
+
+
+def model_kwargs_from_checkpoint(
+    checkpoint, model_type, ligand_mpnn_use_side_chain_context=False
+):
+    """Derive ProteinMPNN constructor arguments from a checkpoint's own metadata.
+
+    A checkpoint describes its own architecture. Nothing outside it should hold a
+    table of names to dimensions: such a table can disagree with the weights it
+    claims to describe, and the disagreement is silent until load_state_dict fails
+    (or, worse, succeeds against a transposed tensor).
+
+    ``checkpoint`` need only be the metadata mapping; the weights are not read here.
+    """
+    kwargs = {
+        name: checkpoint.get(name, default)
+        for name, default in LEGACY_ARCHITECTURE.items()
+    }
+    is_ligand = model_type == "ligand_mpnn"
+    kwargs["k_neighbors"] = checkpoint["num_edges"]
+    # ↓ Only ligand checkpoints carry atom_context_num; the rest are 1 by convention.
+    kwargs["atom_context_num"] = checkpoint["atom_context_num"] if is_ligand else 1
+    kwargs["num_conditions"] = checkpoint.get("num_conditions", 0)
+    kwargs["model_type"] = model_type
+    kwargs["ligand_mpnn_use_side_chain_context"] = (
+        ligand_mpnn_use_side_chain_context if is_ligand else False
+    )
+    return kwargs
+
+
+def build_model_from_checkpoint(
+    checkpoint, model_type, device=None, ligand_mpnn_use_side_chain_context=False
+):
+    """Construct a ProteinMPNN matching ``checkpoint`` and load its weights strictly.
+
+    Strict loading is the point: it is the only check that the metadata written
+    alongside the weights actually describes them.
+    """
+    kwargs = model_kwargs_from_checkpoint(
+        checkpoint, model_type, ligand_mpnn_use_side_chain_context
+    )
+    model = ProteinMPNN(device=device, **kwargs)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    if device is not None:
+        model.to(device)
+    model.eval()
+    return model
+
 
 class ProteinMPNN(torch.nn.Module):
     def __init__(
@@ -22,6 +85,7 @@ class ProteinMPNN(torch.nn.Module):
         atom_context_num=0,
         model_type="protein_mpnn",
         ligand_mpnn_use_side_chain_context=False,
+        num_conditions=0,
     ):
         super().__init__()
 
@@ -29,6 +93,7 @@ class ProteinMPNN(torch.nn.Module):
         self.node_features = node_features
         self.edge_features = edge_features
         self.hidden_dim = hidden_dim
+        self.num_conditions = num_conditions
 
         if self.model_type == "ligand_mpnn":
             self.features = ProteinFeaturesLigand(
@@ -102,9 +167,36 @@ class ProteinMPNN(torch.nn.Module):
 
         self.W_out = torch.nn.Linear(hidden_dim, num_letters, bias=True)
 
+        # ↓ Only condition-aware checkpoints carry this head. Built conditionally so
+        #   load_state_dict stays strict: an unconditioned checkpoint has no weights
+        #   for it, and a conditioned one would otherwise hit an unexpected key.
+        self.condition_feat = (
+            torch.nn.Embedding(num_conditions, hidden_dim) if num_conditions else None
+        )
+
         for p in self.parameters():
             if p.dim() > 1:
                 torch.nn.init.xavier_uniform_(p)
+
+        # ↑ The xavier sweep above would otherwise catch the embedding's 2-D weight.
+        #   Upstream zero-initialises it, so an untrained head contributes nothing.
+        if self.condition_feat is not None:
+            torch.nn.init.zeros_(self.condition_feat.weight)
+
+    def condition_embedding(self, labels):
+        """Per-residue condition embedding, [B,L] integer labels -> [B,L,hidden_dim].
+
+        Refuses rather than ignoring when the model has no condition head: silently
+        dropping labels is indistinguishable from conditioning having worked, and
+        the caller would get a plausible sequence off the model's unconditioned path.
+        """
+        if self.condition_feat is None:
+            raise ValueError(
+                "this model has no condition head (num_conditions=0), so the "
+                "per-residue labels passed to it would be ignored; load a "
+                "condition-aware checkpoint or omit the labels"
+            )
+        return self.condition_feat(labels)
 
     def encode(self, feature_dict):
         # xyz_37 = feature_dict["xyz_37"] #[B,L,37,3] - xyz coordinates for all atoms if needed
@@ -128,6 +220,20 @@ class ProteinMPNN(torch.nn.Module):
         if self.model_type == "ligand_mpnn":
             V, E, E_idx, Y_nodes, Y_edges, Y_m = self.features(feature_dict)
             h_V = torch.zeros((E.shape[0], E.shape[1], E.shape[-1]), device=device)
+            if self.condition_feat is not None:
+                # ↓ h_V starts at zero, so this IS the initial node state rather than a
+                #   perturbation of it — a condition-aware model never saw h_V=0 in
+                #   training. Absent labels fall back to NON_TMBB_CONDITION_LABEL, which
+                #   is what upstream TMB_MPNN does when no per-residue labels are given.
+                labels = feature_dict.get("condition_labels")
+                if labels is None:
+                    labels = torch.full(
+                        (B, L),
+                        NON_TMBB_CONDITION_LABEL,
+                        dtype=torch.long,
+                        device=device,
+                    )
+                h_V = h_V + self.condition_embedding(labels)
             h_E = self.W_e(E)
             h_E_context = self.W_v(V)
 

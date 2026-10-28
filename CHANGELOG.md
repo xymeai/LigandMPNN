@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.4.0
+
+### Added
+
+A checkpoint now describes its own architecture, and `models.build_model_from_checkpoint`
+is the supported way to load one.
+
+`__main__` previously read `num_edges` and `atom_context_num` from the checkpoint but
+hardcoded `node_features`, `edge_features`, `hidden_dim`, `num_encoder_layers` and
+`num_decoder_layers` as literal `128`/`3`/`3`. Any checkpoint trained at a different
+width was therefore unloadable, however compatible its weights. Those five are now read
+from the checkpoint via `models.model_kwargs_from_checkpoint`.
+
+**The new keys are optional.** All nineteen shipped checkpoints carry none of them and
+load unchanged on the historical 128/3+3 defaults (`models.LEGACY_ARCHITECTURE`). Callers
+outside this package that construct `ProteinMPNN` by hand are unaffected, but should
+migrate: a dimension table maintained apart from the weights it describes can disagree
+with them silently.
+
+An optional per-residue condition head, for condition-aware checkpoints such as Baker
+lab's TMB_MPNN. `ProteinMPNN(num_conditions=N)` adds a zero-initialised
+`nn.Embedding(N, hidden_dim)` whose output seeds `h_V` in `encode`. It is built only when
+`num_conditions` is non-zero, so `load_state_dict` stays strict in both directions: an
+unconditioned checkpoint gains no unexpected key, and a conditioned one is not silently
+loaded into a model that would discard its condition weights.
+
+Because `h_V` starts at zero, the embedding **is** the initial node state rather than a
+perturbation of it, so discarding it is not a no-op — a conditioned model would decode
+from a state it never saw in training. Passing labels to a model without a condition head
+raises instead of ignoring them. Labels are `0` unlabelled, `1` interface, `2` buried,
+`3` non-TMBB; an unlabelled run falls back to `NON_TMBB_CONDITION_LABEL`, matching
+upstream TMB_MPNN's own inference default.
+
 ## 1.3.1
 
 ### Fixed
