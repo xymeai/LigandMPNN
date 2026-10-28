@@ -33,6 +33,22 @@ raises instead of ignoring them. Labels are `0` unlabelled, `1` interface, `2` b
 `3` non-TMBB; an unlabelled run falls back to `NON_TMBB_CONDITION_LABEL`, matching
 upstream TMB_MPNN's own inference default.
 
+### Fixed
+
+The test suite now passes. Both long-standing failures were in the harness, not the model.
+
+`xyme-lake` moves from `>=0.16.0` to `>=0.23.0`. 0.23.0 is the first release carrying
+`xyme_lake/sso.py`, the profile-less path that discovers `*TeamAccess` roles from the
+cached SSO token and assumes `dev-DataAccess-<team>` from there. On 0.16.0 the assume-role
+is attempted from whatever ambient profile is configured, which fails with `AccessDenied`
+on every current Xyme SSO session — so `params.download_models` could not fetch a single
+checkpoint. The old floor resolved to exactly 0.16.0, so nothing warned.
+
+`test_protein_mpnn_output_unchanged` compared the whole FASTA header against its fixture,
+including `model_path=`, which is the absolute path of the machine that minted it
+(`/Users/eclay/...`). The test could only ever pass there. The comparison now normalises
+that one field; every other header value, and both sequences, are still asserted exactly.
+
 ## 1.3.1
 
 ### Fixed

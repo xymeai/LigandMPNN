@@ -23,7 +23,7 @@ dependencies = [
     "pytorch-lightning>=2.5.5",
     "boto3>=1.0.0",
     "joblib>=1.5.2",
-    "xyme-lake>=0.16.0",
+    "xyme-lake>=0.23.0",
 ]
 
 [project.urls]
