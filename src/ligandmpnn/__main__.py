@@ -1,5 +1,4 @@
 import argparse
-import asyncio
 import copy
 import json
 import os.path
@@ -24,9 +23,9 @@ from ligandmpnn.data import (
     restype_str_to_int,
     write_full_PDB,
 )
-from ligandmpnn.models import ProteinMPNN
-from ligandmpnn.paths import MODEL_PARAMS_DIR, REPO_DIR
+from ligandmpnn.models import build_model_from_checkpoint, model_kwargs_from_checkpoint
 from ligandmpnn.params import download_models
+from ligandmpnn.paths import MODEL_PARAMS_DIR, REPO_DIR
 from ligandmpnn.sidechain import Packer, pack_side_chains
 
 
@@ -74,31 +73,18 @@ def main(args) -> None:
         logger.info("Choose one of the available models")
         sys.exit()
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    if args.model_type == "ligand_mpnn":
-        atom_context_num = checkpoint["atom_context_num"]
-        ligand_mpnn_use_side_chain_context = args.ligand_mpnn_use_side_chain_context
-        k_neighbors = checkpoint["num_edges"]
-    else:
-        atom_context_num = 1
-        ligand_mpnn_use_side_chain_context = 0
-        k_neighbors = checkpoint["num_edges"]
-
-    model = ProteinMPNN(
-        node_features=128,
-        edge_features=128,
-        hidden_dim=128,
-        num_encoder_layers=3,
-        num_decoder_layers=3,
-        k_neighbors=k_neighbors,
+    # ↓ Architecture now comes from the checkpoint rather than from literals here;
+    #   see models.model_kwargs_from_checkpoint. atom_context_num is still read out
+    #   separately because the featuriser below needs it.
+    atom_context_num = model_kwargs_from_checkpoint(checkpoint, args.model_type)[
+        "atom_context_num"
+    ]
+    model = build_model_from_checkpoint(
+        checkpoint,
+        args.model_type,
         device=device,
-        atom_context_num=atom_context_num,
-        model_type=args.model_type,
-        ligand_mpnn_use_side_chain_context=ligand_mpnn_use_side_chain_context,
+        ligand_mpnn_use_side_chain_context=args.ligand_mpnn_use_side_chain_context,
     )
-
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model.to(device)
-    model.eval()
 
     if args.pack_side_chains:
         model_sc = Packer(
