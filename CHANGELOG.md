@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.5.0
+
+### Added
+
+`ProteinMPNN.unconditional_probs` and `score.py --unconditional_probs_only 1`: the
+per-position amino-acid distribution given the backbone alone, from one deterministic
+decoder pass. No residue identity reaches the decoder and no decoding order is involved.
+
+It is numerically identical to `single_aa_score(use_sequence=True)`, which reaches the same
+quantity in L decoder passes. In that mode the scored position is decoded first, so it sees
+no neighbour residue; despite the flag's name, `use_sequence=False` decodes it last, with
+full context. The equivalence is pinned by a unit test.
+
+The `.pt` written by `score.py` gains a `mode` key (`autoregressive`, `single_aa` or
+`unconditional`). In the unconditional mode `decoding_order` and `std_of_probs` are absent,
+because a single deterministic pass has neither, and `post_processing` states that the
+output is the raw 21-way softmax (column 20 is `X`) with no bias, omit list or temperature.
+
+**The mode refuses what it cannot honour.** `score.py` exits on `--autoregressive_score`,
+`--fixed_residues*`, `--redesigned_residues*`, `--symmetry_residues`, `--homo_oligomer` and
+`--chains_to_design`, which the pass would otherwise ignore without a word, and forces
+`batch_size` and `number_of_batches` to 1. `unconditional_probs` raises for `ligand_mpnn`
+with side-chain context when any residue is fixed: the encoder ingests those native side
+chains, which is sequence information.
+
+### Changed
+
+`score.py` builds its parser in `build_argparser()` and reads `unconditional_probs_only`
+with `getattr`, so a hand-built `argparse.Namespace` from before this release keeps working.
+
 ## 1.4.0
 
 ### Added
