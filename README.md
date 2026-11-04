@@ -582,7 +582,9 @@ out_dict = {}
 out_dict["logits"] - raw logits from the model
 out_dict["probs"] - softmax(logits)
 out_dict["log_probs"] - log_softmax(logits)
-out_dict["decoding_order"] - decoding order used (logits will depend on the decoding order)
+out_dict["decoding_order"] - decoding order used (logits will depend on the decoding order); absent when mode is "unconditional"
+out_dict["mode"] - which quantity this file holds: "autoregressive", "single_aa" or "unconditional"
+out_dict["post_processing"] - only for mode "unconditional": states that no bias, omit list or temperature was applied
 out_dict["native_sequence"] - parsed input sequence in integers
 out_dict["mask"] - mask for missing residues (usually all ones)
 out_dict["chain_mask"] - controls which residues are decoded first
@@ -590,8 +592,11 @@ out_dict["alphabet"] - amino acid alphabet used
 out_dict["residue_names"] - dictionary to map integers to residue_names, e.g. {0: "C10", 1: "C11"}
 out_dict["sequence"] - parsed input sequence in alphabet
 out_dict["mean_of_probs"] - averaged over batch_size*number_of_batches probabilities, [protein_length, 21]
-out_dict["std_of_probs"] - same as above, but std
+out_dict["std_of_probs"] - same as above, but std; absent when mode is "unconditional" (a single deterministic pass has no spread)
 ```
+
+`mask` marks missing residues. Rows of `probs`, `mean_of_probs` and the per-residue dictionaries are still produced for
+masked positions, so filter on `mask` before using them.
 
 ### 1 autoregressive with sequence info
 
@@ -662,6 +667,31 @@ python score.py \
         --batch_size 1 \
         --number_of_batches 10
 ```
+
+### 5 unconditional probabilities (backbone only, one pass)
+
+Get p(AA_i|backbone) for every position from a single deterministic decoder pass. No residue identity reaches the
+decoder and no decoding order is involved, so the result needs no repeated batches. The unit tests check that it equals
+mode 3 (`--single_aa_score 1 --use_sequence 1`) numerically, at one decoder pass instead of one per residue.
+
+```
+python score.py \
+        --model_type "protein_mpnn" \
+        --seed 111 \
+        --unconditional_probs_only 1 \
+        --pdb_path "./outputs/ligandmpnn_default/backbones/1BC8_1.pdb" \
+        --out_folder "./outputs/unconditional_probs"
+```
+
+Caveats:
+
+- The output is the raw 21-way softmax. Column 20 is `X`, and no bias, omit list or temperature is applied, so it is
+  not the distribution that sampling draws from. Apply restrictions afterwards by masking and renormalising.
+- `--use_sequence` has no effect, `batch_size` and `number_of_batches` are forced to 1, and the script exits if given
+  `--autoregressive_score`, `--fixed_residues*`, `--redesigned_residues*`, `--symmetry_residues`, `--homo_oligomer` or
+  `--chains_to_design`, since the pass reads none of them.
+- With `ligand_mpnn --ligand_mpnn_use_side_chain_context 1`, native side chains of fixed residues would feed the encoder.
+  That is sequence information, so the combination raises an error. With every residue designable it is allowed.
 
 ## Side chain packing examples
 
