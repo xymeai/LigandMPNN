@@ -1,5 +1,6 @@
 import itertools
 import sys
+from typing import Any
 
 import numpy as np
 import torch
@@ -652,22 +653,49 @@ class ProteinMPNN(torch.nn.Module):
         }
         return output_dict
 
-    def unconditional_probs(self, feature_dict):
+    def unconditional_probs(
+        self, feature_dict: dict[str, Any]
+    ) -> dict[str, torch.Tensor]:
         """Per-position amino-acid distribution given the backbone alone.
 
         One decoder pass with the sequence-context mask zeroed everywhere, so no
         position sees any decoded residue. Unlike ``sample``/``score``, whose
         conditionals depend on the decoding order, this is order-independent —
-        it is the structure-conditioned prior. It answers the same question as
-        ``single_aa_score(use_sequence=False)`` but not numerically the same way:
-        there, a position's neighbours still carry sequence context through the
-        decoder; here, no position sees any — this one is the stricter prior.
+        it is the structure-conditioned prior.
+
+        Numerically identical to ``single_aa_score(use_sequence=True)``, which
+        reaches the same quantity in L decoder passes: there the scored position
+        is decoded first, so it sees no neighbour residue. (The flag reads the
+        other way round: ``use_sequence=False`` decodes it last, with full
+        context.) Both differ from ``score``.
+
+        Returns raw logits and their log-softmax over all 21 classes, column 20
+        being ``X``. No bias, omit list or temperature is applied, and
+        ``chain_mask`` is not read. For ``ligand_mpnn`` with side-chain context
+        the encoder ingests the native side chains of every residue with
+        ``chain_mask == 0``, which is sequence information, so that combination
+        is refused.
         """
         B_decoder = feature_dict["batch_size"]
         S_true = feature_dict["S"]
         mask = feature_dict["mask"]
         B, L = S_true.shape
         device = S_true.device
+        if B != 1:
+            raise ValueError(
+                f"unconditional_probs expects an encoder batch of 1, got {B}"
+            )
+        if (
+            self.model_type == "ligand_mpnn"
+            and self.features.use_side_chains
+            and bool((feature_dict["chain_mask"] == 0).any())
+        ):
+            raise ValueError(
+                "unconditional_probs is not sequence-blind here: ligand_mpnn with "
+                "side-chain context feeds the native side chains of fixed "
+                "(chain_mask == 0) residues into the encoder. Design every residue "
+                "or build the model without ligand_mpnn_use_side_chain_context."
+            )
 
         h_V, h_E, E_idx = self.encode(feature_dict)
         h_V = h_V.repeat(B_decoder, 1, 1)

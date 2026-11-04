@@ -17,10 +17,57 @@ from ligandmpnn.data import (
 from ligandmpnn.models import ProteinMPNN
 
 
+# ↓ Flags --unconditional_probs_only would ignore without a word, or contradict.
+#   (name, is-set predicate): the defaults are "" / 0 / None.
+_INCOMPATIBLE_WITH_UNCONDITIONAL = {
+    "autoregressive_score": bool,
+    "fixed_residues": bool,
+    "fixed_residues_multi": bool,
+    "redesigned_residues": bool,
+    "redesigned_residues_multi": bool,
+    "symmetry_residues": bool,
+    "homo_oligomer": bool,
+    "chains_to_design": lambda value: value is not None,
+}
+
+
+def exit_on_flags_ignored_by_unconditional_mode(args) -> None:
+    """Fail loudly rather than return a file that looks like the flags were honoured.
+
+    The unconditional pass reads no chain_mask, symmetry or decoding order, so any of
+    these would be dropped and the .pt would still look well-formed.
+    """
+    offending = [
+        f"--{name}"
+        for name, is_set in _INCOMPATIBLE_WITH_UNCONDITIONAL.items()
+        if is_set(getattr(args, name, None))
+    ]
+    if offending:
+        sys.exit(
+            f"--unconditional_probs_only is backbone-only and cannot honour "
+            f"{', '.join(offending)}; drop them (apply restrictions to the output "
+            "afterwards by masking and renormalising)."
+        )
+
+
 def main(args) -> None:
     """
     Inference function
     """
+    # ↓ getattr: Namespaces built before this flag existed must keep working.
+    unconditional = bool(getattr(args, "unconditional_probs_only", 0))
+    if unconditional:
+        exit_on_flags_ignored_by_unconditional_mode(args)
+    # ↓ the unconditional pass is deterministic, so extra batches would only repeat
+    #   identical rows and make std_of_probs a fabricated zero.
+    if unconditional and (args.batch_size, args.number_of_batches) != (1, 1):
+        sys.stderr.write(
+            "--unconditional_probs_only is deterministic: using batch_size=1 and "
+            "number_of_batches=1\n"
+        )
+    batch_size, number_of_batches = (
+        (1, 1) if unconditional else (args.batch_size, args.number_of_batches)
+    )
     if args.seed:
         seed = args.seed
     else:
@@ -271,7 +318,7 @@ def main(args) -> None:
                 number_of_ligand_atoms=atom_context_num,
                 model_type=args.model_type,
             )
-            feature_dict["batch_size"] = args.batch_size
+            feature_dict["batch_size"] = batch_size
             B, L, _, _ = feature_dict["X"].shape  # batch size should be 1 for now.
             # add additional keys to the feature dictionary
             feature_dict["symmetry_residues"] = remapped_symmetry_residues
@@ -280,14 +327,14 @@ def main(args) -> None:
             probs_list = []
             log_probs_list = []
             decoding_order_list = []
-            for _ in range(args.number_of_batches):
+            for _ in range(number_of_batches):
                 feature_dict["randn"] = torch.randn(
                     [feature_dict["batch_size"], feature_dict["mask"].shape[1]],
                     device=device,
                 )
                 # ↓ tested first: single_aa_score defaults to 1, so it would otherwise
                 #   shadow an unconditional_probs_only-only request.
-                if args.unconditional_probs_only:
+                if unconditional:
                     score_dict = model.unconditional_probs(feature_dict)
                     mode = "unconditional"
                 elif args.autoregressive_score:
@@ -330,11 +377,18 @@ def main(args) -> None:
             #   consumer cannot tell a prior from an autoregressive conditional,
             #   and both look plausible.
             out_dict["mode"] = mode
+            if unconditional:
+                # ↓ the other half of provenance: these are not the distribution
+                #   sampling draws from, and column 20 is X.
+                out_dict["post_processing"] = (
+                    "none: raw 21-way softmax including X; no bias, omit or "
+                    "temperature applied"
+                )
             out_dict["native_sequence"] = feature_dict["S"][0].cpu().numpy()
             out_dict["mask"] = feature_dict["mask"][0].cpu().numpy()
-            out_dict["chain_mask"] = (
-                feature_dict["chain_mask"][0].cpu().numpy()
-            )  # this affects decoding order
+            # ↓ affects decoding order in the conditional modes; not read at all in
+            #   the unconditional one (which refuses flags that would set it).
+            out_dict["chain_mask"] = feature_dict["chain_mask"][0].cpu().numpy()
             out_dict["seed"] = seed
             out_dict["alphabet"] = alphabet
             out_dict["residue_names"] = encoded_residue_dict_rev
@@ -352,7 +406,10 @@ def main(args) -> None:
 
             out_dict["sequence"] = sequence
             out_dict["mean_of_probs"] = mean_dict
-            out_dict["std_of_probs"] = std_dict
+            # ↓ one deterministic pass has no spread; a zero here would read as
+            #   "the model is certain", so the key is absent instead.
+            if not unconditional:
+                out_dict["std_of_probs"] = std_dict
             torch.save(out_dict, output_stats_path)
 
 
@@ -575,7 +632,7 @@ def build_argparser() -> argparse.ArgumentParser:
         "--unconditional_probs_only",
         type=int,
         default=0,
-        help="Output per-position amino-acid probabilities conditioned on the backbone alone; single forward pass, decoding-order independent.",
+        help="1 - output per-position amino-acid probabilities conditioned on the backbone alone: one deterministic forward pass, decoding-order independent, raw 21-way softmax (X included, no bias/omit/temperature). Equals --single_aa_score 1 --use_sequence 1 at 1/L of the cost. Ignores --use_sequence, forces batch_size=number_of_batches=1, and exits if given --autoregressive_score, --fixed_residues*, --redesigned_residues*, --symmetry_residues, --homo_oligomer or --chains_to_design.",
     )
 
     return argparser
